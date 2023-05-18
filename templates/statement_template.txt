@@ -1,0 +1,1 @@
+{user} last said: "{statement}" I must think more about what {user} said. I will keep what {user} said in mind when I speak or ask questions.

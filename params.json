@@ -1,0 +1,14 @@
+{
+    "script_name": "ceruleus",
+    "verbose": false,
+    "CUDA_VISIBLE_DEVICES": 1,
+    "results_dir": "results",
+    "template_dir": "templates",
+    "char_card_path": "char.json",
+    "char_log_path": "char_persistent.json",
+    "squire_path": "squire",
+    "squire_out_dir": "squire_output",
+    "squire_model_path": "ggml-model-q5_1.bin",
+    "telesend": false,
+    "retry_delay": 10
+}

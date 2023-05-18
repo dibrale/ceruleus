@@ -1,0 +1,3 @@
+Character Persona: {persona}
+
+Scenario: {scenario}
