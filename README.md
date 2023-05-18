@@ -2,7 +2,11 @@
 
 Use [Squire](https://github.com/dibrale/squire) to give a local LLM running in oobabooga's [text-generation-webui](https://github.com/oobabooga/text-generation-webui) the ability to look up information online and generate messages autonomously on the basis of this information.
 
-## Software Requirements
+## Philosophy
+
+While Ceruleus only supports bidirectional communication at this time, the ultimate goal is to integrate additional modules into the software in order to provide a back-end 'internal monologue' for chat agents. This would enable chat agents to take the initiative in posting chat messages rather than relying exclusively on new user input to trigger a response. To facilitate this ultimate aim, the script uses asynchronous routines where possible. This carries the welcome benefit of fast bidirectional exchange.
+
+# Software Requirements
 
 - A working installation of [text-generation-webui](https://github.com/oobabooga/text-generation-webui)
 - Local LLM weights in ggml format
@@ -37,8 +41,9 @@ Edit the params.json file before running Ceruleus to reflect your setup, with pa
 | retry_delay | Integer | 10 | Retry delay for web UI API calls |
 
 ## Operation
-
 This software is a work in progress, so a number of convenience features are absent at the time of this writing.
+
+![Entity flow diagram of the main loop](https://github.com/dibrale/ceruleus/blob/main/ceruleus_plan.drawio.svg)
 
 ### Precautions
 
@@ -48,11 +53,11 @@ This software is a work in progress, so a number of convenience features are abs
 
 ### Instructions
 
-- Initializing: Run `python main.py` from the root directory of the script.
-- Beginning execution: Navigate to the root directory of Ceruleus in a separate terminal instance, and type `touch squire_output/out.txt`. Alternatively, overwrite squire_output_out.txt with a file containing an initial answer message of your choice (e.g.: "No answers yet. Ask a question in your reply.")
-- Stopping the script: Ceruleus runs as a typical asynchronous Python script, but has no user interface or defined stop condition. Stop Ceruleus with 'control-C' once it has generated the desirable amount of output in your chat agent's persistent log. 
-- Checking the chat log: You can check the log by reloading the caracter periodically in text-generation-webui - the chat does not auto-update. 
-- Using intermediate results: The \*.json files in 'results/' can be interrogated for use in downstream applications such as summarization and separate LLM-powered goal-setting.
+- **Initializing:** Run `python main.py` from the root directory of the script.
+- **Beginning execution:** Navigate to the root directory of Ceruleus in a separate terminal instance, and type `touch squire_output/out.txt`. Alternatively, overwrite squire_output_out.txt with a file containing an initial answer message of your choice (e.g.: "No answers yet. Ask a question in your reply.")
+- **Stopping the script:** Ceruleus runs as a typical asynchronous Python script, but has no user interface or defined stop condition. Stop Ceruleus with 'control-C' once it has generated the desirable amount of output in your chat agent's persistent log. 
+- **Checking the chat log:** You can check the log by reloading the caracter periodically in text-generation-webui - the chat does not auto-update. 
+- **Using intermediate results:** The \*.json files in 'results/' can be interrogated at any time for use in downstream applications such as summarization and separate LLM-powered goal-setting.
 
 ## Afterword
 
