@@ -4,7 +4,7 @@ Use [Squire](https://github.com/dibrale/squire) to give a local LLM running in o
 
 ## Philosophy
 
-While Ceruleus only supports bidirectional communication at this time, the ultimate goal is to integrate additional modules into the software in order to provide a back-end 'internal monologue' for chat agents. This would enable chat agents to take the initiative in posting chat messages rather than relying exclusively on new user input to trigger a response. To facilitate this ultimate aim, the script uses asynchronous routines where possible. This carries the welcome benefit of fast bidirectional exchange.
+The ultimate goal of Ceruleus is to organize information transfer between modules that provide a back-end 'internal monologue' for chat agents. This would enable chat agents to take the initiative in posting chat messages rather than relying exclusively on new user input to trigger a response. To facilitate this ultimate aim, the script uses asynchronous routines where possible. This carries the welcome benefit of fast exchange, making execution times mostly dependent on total LLM inference speed.
 
 # Software Requirements
 
@@ -31,19 +31,37 @@ Edit the params.json file before running Ceruleus to reflect your setup, with pa
 | verbose | Boolean | false | Set to enable additional terminal output for debugging. |
 | CUDA_VISIBLE_DEVICES | String | 0 | Comma-separated list of all CUDA devices that should be visible to Ceruleus (eg. use '0,1' if you have two GPUs and want both to be detectable). Passes the shell variable of the same name on execution of external scripts. | 
 | results_dir | String | results | Path to results directory. |
+| work_dir | String | results | Path to work directory. |
 | template_dir | String | templates | Path to templates directory. |
 | char_card_path | String | char.json | Path to the character file Ceruleus is to use, eg. `text_generation_webui/characters/<character_name>.json` |
 | char_log_path | String | char_persistent.json | Path to the conversation log file Ceruleus is to use, eg. `text_generation_webui/logs/<character_name>_persistent.json` |
 | squire_path | String | squire | Path to the directory where `squire.py` is located. |
 | squire_out_dir | String | squire_output | Path to the directory where Squire will write its output. This directory will be monitored for text file activity, and any text file altered within that directory will be processed as an answer string |
-| squire_model_path | String | ggml-model-q5_1.bin | Path to the model weights to be used when running Squire. Only CPU inference with [llama.cpp](https://github.com/ggerganov/llama.cpp) is supported at this time, so this should be a \*.bin file. |
+| model_path | String | ggml-model-q5_1.bin | Path to the model weights to be used when running Squire. Only CPU inference with [llama.cpp](https://github.com/ggerganov/llama.cpp) is supported at this time, so this should be a \*.bin file. |
 | telesend | Boolean | false | Set to write goals in `data_visible` of the persistent conversation log instead of just in `data`. |
 | retry_delay | Integer | 10 | Retry delay for web UI API calls |
+| answer_attempts_max | Integer | 3 | Maximum number of times to run Squire on the same question before reappraisal |
+
+Included in this parameter file is another object containing parameters used by the appraisal code LLM. These are described in detail elsewhere.
+
+| Parameter | Type | Default |
+| ------------- | ------------- | ------------- |
+| n_ctx | Integer | 1800 |
+| top_p | Float | 0.8 |
+| top_k | Integer | 30 |
+| repeat_penalty | Float | 1.1 |
+| temperature | Float | 0.4 |
+| n_batch | Integer | 700 |
+| n_threads | Integer | 8 |
+
+Additional Llama parameters that can be passed by LangChain to llama.cpp can be included in this object.
 
 ## Operation
 This software is a work in progress, so a number of convenience features are absent at the time of this writing.
 
 ![Entity flow diagram of the main loop](https://github.com/dibrale/ceruleus/blob/main/ceruleus_plan.drawio.svg)
+
+Note that this main loop diagram does not yet include appraisal code and associated flow control.
 
 ### Precautions
 

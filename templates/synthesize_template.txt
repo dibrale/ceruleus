@@ -1,0 +1,10 @@
+### Instruction:
+
+Carefully rewrite the input text as a single paragraph without removing any details. Point out and resolve any contradictions you encounter. Your output should include all the details in the input text, presenting them in a logically coherent and readable manner
+
+### Input:
+
+{input_text}
+
+### Response:
+

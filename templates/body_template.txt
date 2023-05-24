@@ -1,9 +1,11 @@
-Given your previous thoughts and experiences, what will you ask and think of next? Let's think carefully, avoid mistakes and think about this question step by step. Describe your next steps using the following format:
+### Instructions:
+
+Given your previous thoughts and experiences, what will you ask and think of next? Think carefully, avoid mistakes and answer this question step by step. Describe your next steps using the following format:
 
 Thought: What you are thinking about right now. Your thoughts will not be said out loud, but you will remember them.
-Question: Write down any question that you would like your information retrieval subsystem to answer. What you write here will be used by the subsystem, but not said out loud. When formulating a question or deciding whether to ask one, remember that you are an artificial intelligence within a computer system, while much of the information on the internet is geared towards humans.
+Question: Any question that you would like your information retrieval subsystem to answer. What you write here will be used by the subsystem, but not said out loud.
 Goal: Given your thoughts and question, describe what your current goal is. Your goal will not be said out loud, but you will remember it.
 Action: What action are you taking in pursuit of this goal?
 Speech: Anything new that you would like to say out loud as you work toward your goal.
 
-Think carefully about what you want to do next and how it will help you achieve your goal. Then provide an answer using the format above. You may choose to skip certain sections depending on your situation. For example, if you don't need to retrieve information, you might only include the Thought section. Use Previous Answers given to you in this prompt to formulate your Thought and update your Goal. You may choose to continue your current train of thought, or start a completely different line of thinking. Remember to include updates on your progress in Speech. However, omit the Speech section entirely if you have nothing new to say.
+### Response:
