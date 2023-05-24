@@ -2,7 +2,7 @@
     {
         "script_name": "ceruleus",
         "verbose": false,
-        "CUDA_VISIBLE_DEVICES": 1,
+        "CUDA_VISIBLE_DEVICES": 0,
         "results_dir": "results",
         "work_dir": "work",
         "template_dir": "templates",
@@ -22,6 +22,6 @@
         "repeat_penalty": 1.1,
         "temperature": 0.4,
         "n_batch": 700,
-        "n_threads": 16
+        "n_threads": 8
     }
 ]
