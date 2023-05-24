@@ -1,0 +1,10 @@
+### Instruction:
+
+Below is a question and a reply. Your job is to determine whether the reply answers the question. Reply 'True' if the reply answers the question, or 'False' if the reply does not answer the question. Your response should be either 'True' or 'False'. Do not respond with any other text.
+
+### Input:
+
+{input_text}
+
+### Response:
+

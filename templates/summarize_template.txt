@@ -1,0 +1,10 @@
+### Instruction:
+
+Carefully summarize the input text, removing any redundancies while conveying the essential meaning.
+
+### Input:
+
+{input_text}
+
+### Response:
+

@@ -1,0 +1,14 @@
+### Instruction:
+
+Below is a goal, some related thoughts and some answers. Your job is to determine on the basis of information whether the goal has been met. Reply using the following template:
+
+For: Arguments in favor of the goal having been met.
+Against: Arguments against the goal having been met.
+Verdict: Your final decision on the basis of the information and your arguments. Write 'True' if the goal has been met, or 'False' if the goal has not been met.
+
+### Input:
+
+{input_text}
+
+### Response:
+

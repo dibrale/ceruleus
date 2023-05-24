@@ -6,10 +6,47 @@ import re
 
 
 # Check for None and return an empty string in its place. Otherwise, pass the input to output as string.
-def assure_string(txt):
+def assure_string(txt) -> str:
     if not txt:
         return ''
     return str(txt)
+
+
+# Handle strings and string lists equally, assuring a string as output
+def list_or_str_to_str(txt: str | list[str], join_string='\n', if_blank='') -> str:
+    if type(txt) is str:
+        out = txt.strip()
+    elif type(txt) is list[str]:
+        out = join_string.join(txt).strip()
+    elif not txt:
+        return if_blank
+    else:
+        out = str(txt)
+    return out
+
+
+# Parse a string for boolean output, returning None for inconsistent replies
+def bool_from_str(text_in: str, true_str='true', false_str='false', case_sensitive=False) -> bool | None:
+
+    # Apply case sensitivity
+    if not case_sensitive:
+        text = text_in.lower()
+        true = true_str.lower()
+        false = false_str.lower()
+    else:
+        text = text_in
+        true = true_str
+        false = false_str
+
+    # Check for statements
+    is_true = text.lower().find(true)
+    is_false = text.lower().find(false)
+    if is_true > 0 > is_false:
+        return True
+    elif is_false > 0 > is_true:
+        return False
+    else:
+        return None
 
 
 # Load JSON answer data up to a maximum token length

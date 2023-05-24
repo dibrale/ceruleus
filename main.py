@@ -1,73 +1,16 @@
-import asyncio
+import os
 from pathlib import Path
-
-from datetime import timedelta
 from shutil import copyfile
-from subprocess import PIPE, STDOUT
-
-from watchdog.events import FileSystemEventHandler
-from watchdog.observers import Observer
 
 from modules.logutils import *
 from modules.ooba_api import print_response_stream
 from modules.saveutils import *
 from modules.tokenutils import *
 from modules.stringutils import *
+from modules.appraiseutils import *
+from modules.scriptutils import *
 
-from modules.config import params, attributes
-
-# TODO: Argparse
-
-
-# Custom event handler class that triggers when a new file is created
-class NewFileHandler(FileSystemEventHandler):
-    def __init__(self, file_queue, text_queue):
-        self.loop = loop
-        self.queue = file_queue
-        self.text_queue = text_queue
-        self.last_modified = datetime.now()
-
-    # Asynchronously called when a new file is detected
-    async def _on_any_event_async(self, event):
-
-        delta = datetime.now() - self.last_modified
-        if datetime.now() - self.last_modified < timedelta(seconds=1):
-            print_v(f"Additional event detected, but suppressed: {event.src_path}", params['verbose'])
-            print_v(f"Time since prior event: {round(delta.microseconds / 1000)} ms", params['verbose'])
-            return
-        else:
-            self.last_modified = datetime.now()
-
-        await asyncio.sleep(0)
-        if event.src_path.endswith('.txt'):
-            print_v('Text file modified: ' + event.src_path)
-            path.update({'squire_out': event.src_path})
-            content = await read_text_file(event.src_path)
-            await save_answer(content)
-            await self.text_queue.put(content + '\n')
-
-    # Synchronous wrapper for on_created_async
-    def on_any_event(self, event):
-        self.loop.create_task(self._on_any_event_async(event))
-
-
-# Monitors a directory for new text files and triggers the event handler
-async def monitor_directory(dir_path: str, file_queue: asyncio.Queue, text_queue: asyncio.Queue):
-    print_v(f"Monitoring {params['squire_out_dir']} directory")
-
-    # Monitoring is accomplished using a listener
-    event_handler = NewFileHandler(file_queue, text_queue)
-    observer = Observer()
-    observer.schedule(event_handler, dir_path, recursive=False)
-    observer.start()
-
-    try:
-        while True:
-            await asyncio.sleep(0.25)
-    except KeyboardInterrupt:
-        observer.stop()
-
-    observer.join()
+from modules.config import params, attributes, path
 
 
 # Aggregates text content from the queue
@@ -130,41 +73,14 @@ async def exchange(
             await asyncio.sleep(retry_delay)
     response = await response_queue.get()
 
+    # Functions that write to the same file are staggered
     if response:
         gathered_question = await asyncio.gather(
             parse_question(response),
-            save_thought(response),
-            save_goal(response),
-            save_speech(response)
-        )
+            save_thought(response, loop))
         parsed_question = assure_string(gathered_question[0])
-
-        await squire_queue.put(parsed_question)
-
-
-async def run_script(script_path, *args, interpreter="python", prefix=''):
-    if prefix:
-        prefix += ' '
-    command = f"{prefix}{interpreter} {script_path} " + ' '.join(args)
-    print_v(f"Running command: {command}")
-    process = await asyncio.create_subprocess_shell(command, stdin=PIPE, stdout=PIPE, stderr=STDOUT)
-
-    async def read_stream(stream):
-        while True:
-            line = await stream.readline()
-            if not line:
-                break
-            print(line.decode().rstrip())
-
-    await asyncio.gather(read_stream(process.stdout))
-    await process.wait()
-
-    if process.returncode != 0:
-        print_v(f'Process exited with {process.returncode}')
-    else:
-        print_v('Process completed successfully', params['verbose'])
-
-    return process.returncode
+        await save_goal(response, loop),
+        await asyncio.gather(save_speech(response), squire_queue.put(parsed_question))
 
 
 async def send_to_squire(in_queue: asyncio.Queue):
@@ -201,65 +117,116 @@ async def send_to_squire(in_queue: asyncio.Queue):
     await asyncio.sleep(0)
 
 
+# TODO: Make an entirely new goal and scrub everything
+async def new_goal(goal_list: list[str], character_text: str, language_model: any) -> str:
+    return ''
+
+
+# Situation appraisal block
+async def appraise(answered: bool, answer_attempts: int, answers_synth: str, thoughts: dict, llm):
+    # Initialize a new goals list
+    new_goal_list = {'goals': []}
+
+    # Summarize our thoughts and load any goals we have
+    goals_task = loop.create_task(load_json_data(path['goals']))
+    thoughts_task = loop.create_task(process(thoughts['thoughts'], llm, 'summarize'))
+    goals, thoughts_sum = await asyncio.gather(goals_task, thoughts_task)
+
+    # Launch goal appraisal when question was answered
+    if answered and goals['goals'] and answers_synth:
+        goals_with_status = await check_goals(goals['goals'], thoughts_sum, answers_synth, llm)
+        new_goal_list['goals'] = goals_with_status['unmet']
+
+    # If our attempts to answer a question are repeatedly frustrated, we restate our goals in a new way
+    elif answer_attempts > params['answer_attempts_max']:
+        print_v(f"Attempted to answer {answer_attempts} times - re-evaluating goal")
+        goals_sum = await process(goals['goals'], llm, 'summarize')
+        print_v(f"Restated goal: {goals_sum}", params['verbose'])
+        new_goal_list['goals'].append(goals_sum)
+        await append_json_data(goals_sum, 'goals', path['goals_persistent'])
+
+    await write_json_data(new_goal_list, path['goals'])
+
+
 # Main function that runs the script
 async def main():
+    # Initialize state trackers
+    answer_attempts = 0
+    first_run = True
+    answered = False
+
+    # Initialize a couple of variables for safety
+    question = ''
+
+    # Load files that only need to be loaded once
+    statement, body, chara_text = await asyncio.gather(
+        read_text_file(path['statement_template']),
+        read_text_file(path['body_template']),
+        read_text_file(path['char_template'])
+    )
+
+    # Create LLM for use by appraisal functions
+    llm = await llama(loop)
 
     # Using lots of different queues to avoid accidental ingestion
-    file_queue = asyncio.Queue()
-    text_queue = asyncio.Queue()
-    squire_queue = asyncio.Queue()
-    response_queue = asyncio.Queue()
-    aggregate_queue = asyncio.Queue()
+    file_queue = text_queue = squire_queue = response_queue = aggregate_queue = asyncio.Queue()
 
     # Monitor the directory for new text files
-    asyncio.run_coroutine_threadsafe(monitor_directory(params['squire_out_dir'], file_queue, text_queue), loop)
+    asyncio.run_coroutine_threadsafe(monitor_directory(params['squire_out_dir'], file_queue, text_queue, loop), loop)
 
     while True:
-        # Task to continuously send text to the LLM
-        exchange_task = loop.create_task(exchange(aggregate_queue, response_queue, squire_queue))
-
-        # Task to launch Squire in response to a question by the LLM
-        squire_task = loop.create_task(send_to_squire(squire_queue))
-
         # Load all data needed to generate a prompt. Should be rate-limited by text_queue.get()
-        text, statement, body, chara_text, thoughts, answers, convo = await asyncio.gather(
+        text, thoughts, answers, convo = await asyncio.gather(
             text_queue.get(),
-            read_text_file(path['statement_template']),
-            read_text_file(path['body_template']),
-            read_text_file(path['char_template']),
             load_json_data(path['thoughts']),
             load_json_data(path['answers']),
             load_json_data(path['char_log'])
         )
 
-        # Generate the prompt
-        aggregate_task = loop.create_task(aggregate_text(statement, text, body, chara_text, thoughts, answers, convo))
-        prompt = await aggregate_task
+        if answered or first_run:
+            answer_attempts = 0
+            # Task to send text to the LLM, then Squire
+            exchange_task = loop.create_task(exchange(aggregate_queue, response_queue, squire_queue))
 
-        # Await tasks for getting the prompt, processing it, then sending the reply to Squire
-        put_task = aggregate_queue.put(prompt)
-        await put_task
-        await exchange_task
+            # Generate the prompt
+            aggregate_task = loop.create_task(
+                aggregate_text(statement, text, body, chara_text, thoughts, answers, convo))
+
+            prompt = await aggregate_task
+
+            # Await tasks for getting the prompt, processing it, then sending the reply to Squire
+            aggregate_put_task = aggregate_queue.put(prompt)
+            await aggregate_put_task
+            await exchange_task
+
+        else:
+            # Ask again rather than ascending the information
+            squire_put_task = squire_queue.put(question)
+            answer_attempts += 1
+            await squire_put_task
+
+        # Task to launch Squire in response to a question by the LLM
+        squire_task = loop.create_task(send_to_squire(squire_queue))
         await squire_task
+
+        # Do not execute appraisal code on the first run
+        if first_run:
+            first_run = False
+            continue
+
+        # Turn the answers into a coherent output, if there are any
+        answers_synth = await chunk_process(answers['answers'], llm, 'synthesize')
+
+        # Check if question has been answered
+        [question, answered] = await check_answered(answers_synth, llm, loop)
+
+        # Launch appraisal loop
+        await appraise(answered, answer_attempts, answers_synth, thoughts, llm)
 
 
 if __name__ == "__main__":
-    # Create file paths
-    path = {
-        'statement_template': f"{params['template_dir']}/statement_template.txt",
-        'body_template': f"{params['template_dir']}/body_template.txt",
-        'char_template': f"{params['template_dir']}/character_template.txt",
-        'continue_template': f"{params['template_dir']}/continue_template.txt",
-        'char_card': params['char_card_path'],
-        'thoughts': f"{params['results_dir']}/thoughts.json",
-        'goals': f"{params['results_dir']}/thoughts.json",
-        'answers': f"{params['results_dir']}/answers.json",
-        'char_log': params['char_log_path'],
-        'squire': f"{params['squire_path']}/squire.py",
-        'squire_template': f"{params['squire_path']}/template.txt",
-        'squire_question': f"{params['squire_path']}/question.txt",
-        'squire_model': params['squire_model_path']
-    }
+    # Set environment variables
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(params['CUDA_VISIBLE_DEVICES'])
 
     # Check file paths before entering loop
     paths_found = 0
