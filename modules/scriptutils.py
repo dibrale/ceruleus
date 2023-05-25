@@ -6,10 +6,10 @@ from watchdog.observers import Observer
 
 from watchdog.events import FileSystemEventHandler
 
-from modules.config import params
+from modules.config import params, path
 from modules.logutils import print_v
-from modules.rwutils import read_text_file
-from modules.saveutils import save_answer
+from modules.rwutils import read_text_file, write_json_data
+from modules.saveutils import parse_save_answer
 
 
 # Custom event handler class that triggers when a new file is created
@@ -34,7 +34,7 @@ class NewFileHandler(FileSystemEventHandler):
         if event.src_path.endswith('.txt'):
             print_v('Text file modified: ' + event.src_path)
             content = await read_text_file(event.src_path)
-            answer_task = save_answer(content, self.loop)
+            answer_task = parse_save_answer(content, self.loop)
             text_queue_task = self.text_queue.put(content + '\n')
             await asyncio.gather(answer_task, text_queue_task)
 
@@ -89,3 +89,13 @@ async def run_script(script_path, *args, interpreter="python", prefix=''):
         print_v('Process completed successfully', params['verbose'])
 
     return subprocess.returncode
+
+
+# Initialize the work files
+async def reset(loop: AbstractEventLoop) -> bool:
+    print_v("Initializing the work files")
+    clear_answers_task = loop.create_task(write_json_data({'answers': []}, path['answers']))
+    clear_thoughts_task = loop.create_task(write_json_data({'thoughts': []}, path['thoughts']))
+    clear_goals_task = loop.create_task(write_json_data({'goals': []}, path['goals']))
+    await asyncio.gather(clear_answers_task, clear_thoughts_task, clear_goals_task)
+    return True

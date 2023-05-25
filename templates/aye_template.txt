@@ -1,0 +1,10 @@
+### Instruction:
+
+Below is a question and a reply. Your job is to concisely argue in favor of the reply having adequately answered the question. Respond with your argument. Do not restate the input.
+
+### Input:
+
+{input_text}
+
+### Response:
+

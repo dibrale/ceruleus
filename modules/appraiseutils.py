@@ -7,7 +7,7 @@ from langchain.callbacks.base import BaseCallbackManager
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 
 from modules.rwutils import *
-from modules.stringutils import list_or_str_to_str, bool_from_str
+from modules.stringutils import list_or_str_to_str, bool_from_str, check_nil
 from modules.tokenutils import llama_chunk, llama_token_length
 from modules.saveutils import write_crumb
 
@@ -29,7 +29,7 @@ async def llama(loop: AbstractEventLoop):
 # General function for processing text through an LLM using a template
 async def process(text: str | list[str], language_model: any, template_type: str = 'summarize') -> str:
     # Short circuit to empty output if input is empty:
-    if not text or assure_string(text) == '':
+    if check_nil(text):
         print_v(f'Empty input for {template_type} process - returning blank string')
         return ''
 
@@ -61,9 +61,10 @@ async def chunk_process(
         text: str | list[str],
         language_model: any,
         template_type: str = 'summarize',
-        max_tokens=1500,
+        max_tokens=1300,
         chunk_tokens=1024,
-        output_list=False
+        output_list=False,
+        summarize_chunks=True
 ) -> str | list[str]:
 
     input_text = list_or_str_to_str(text, if_blank='Nothing.')
@@ -81,39 +82,61 @@ async def chunk_process(
 
     if output_list:
         return processed_chunks
+    if summarize_chunks:
+        try:
+            summary = await process(processed_chunks, language_model, 'summarize')
+            return summary
+        except ValueError as e:
+            print_v(f"{e} - returning string of chunks instead")
     return list_or_str_to_str(processed_chunks)
 
 
+# Function to prepare the advocate template
+
 # Function to determine whether a question was answered
-async def is_answered(question: str, answer: str | list[str], language_model: any) -> bool | None:
+async def is_answered(
+        question: str,
+        answer: str | list[str],
+        language_model: any,
+        loop: AbstractEventLoop
+) -> bool | None:
+
+    # Listify the answer text
+    if type(answer) is str:
+        answer_list = [answer]
+    else:
+        answer_list = answer
 
     print_v("Checking if question has been answered")
 
-    # Prepare the question and answer for input
-    input_text = \
-        f"Question: {question.strip()}\n\nAnswer: {list_or_str_to_str(answer, if_blank='Nothing.').strip()}"
+    for candidate in answer_list:
+        # Prepare the question and answer for input
+        input_text = \
+            f"Question: {question.strip()}\n\nAnswer: {list_or_str_to_str(candidate, if_blank='Nothing.').strip()}"
 
-    # Ask the LLM if the answer is any good
-    result = await chunk_process(input_text, language_model, 'answer_eval', output_list=True)
+        # Create argument and judge tasks
+        # aye_task = loop.create_task(process(input_text, language_model, 'aye'))
+        # nay_task = loop.create_task(process(input_text, language_model, 'nay'))
 
-    # Parse the result and return a boolean, checking for inconsistency
-    answered_out = False
-    for answer in result:
-        answered = bool_from_str(answer)
-        if answered:
-            answered_out = True
-            break
+        # Serial execution only - for now
+        aye = await process(input_text, language_model, 'aye')
+        nay = await process(input_text, language_model, 'nay')
 
-    # Log output
-    if answered_out:
-        modifier = ''
-    else:
-        modifier = 'not yet '
+        # Initialize and run the judge
+        judge_input = f"{input_text}\n\nArgument in favor: {aye}\n\n Argument against: {nay}"
+        verdict_txt = await process(judge_input, language_model, 'judge')
+        verdict = bool_from_str(verdict_txt)
 
-    print_v(f"Question has {modifier}been answered", not params['verbose'])
-    print_v(f"Question has {modifier}been answered: {question}", params['verbose'])
+        # Kill the function and return true if an answer is found
+        if verdict:
+            print_v(f"Question has been answered", not params['verbose'])
+            print_v(f"Question has not been answered: {question}", params['verbose'])
+            return True
 
-    return answered_out
+    # Lament the lack of an answer for the log, then return False
+    print_v(f"Question has not been answered", not params['verbose'])
+    print_v(f"Question has not been answered: {question}", params['verbose'])
+    return False
 
 
 # Get thoughts related to the goal. Capable of batch execution using async code
@@ -238,7 +261,7 @@ async def check_goals(
             if write_crumbs:
                 await write_crumb(
                     f"{goal}. Summary of my thoughts just before meeting this goal: {list_or_str_to_str(thoughts)}",
-                    prefix='I met a goal: ')
+                    prefix=f"{params['char_name']} met a goal: ")
         else:
             goals_unmet.append(goal)
 
@@ -249,10 +272,14 @@ async def check_goals(
 
 # Check if the question currently written for Squire has been answered. If yes, write a crumb and clear the answers.
 async def check_answered(answers: str | list[str], llm: any, loop: AbstractEventLoop) -> [str, bool]:
-    synthesize_task = loop.create_task(chunk_process(answers, llm, 'synthesize'))
-    question_task = loop.create_task(read_text_file(path['squire_question']))
-    [answer, question] = await asyncio.gather(synthesize_task, question_task)
-    answered = await is_answered(question, answer, llm)
+    # Synthesize reply from list if necessary rather than just concatenating it
+    if type(answers) is list[str]:
+        answer = await chunk_process(answers, llm, 'synthesize')
+    else:
+        answer = answers
+    question = await read_text_file(path['squire_question'])
+    answered = await is_answered(question, answer, llm, loop)
+
     if answered:
         crumb_string = f"{params['char_name']} found the answer to her question."
         crumb_task = loop.create_task(write_crumb(f"\nQuestion: {question}\nAnswer: {answer}", prefix=crumb_string))

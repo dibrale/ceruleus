@@ -39,11 +39,11 @@ def bool_from_str(text_in: str, true_str='true', false_str='false', case_sensiti
         false = false_str
 
     # Check for statements
-    is_true = text.lower().find(true)
-    is_false = text.lower().find(false)
-    if is_true > 0 > is_false:
+    is_true = text.count(true)
+    is_false = text.count(false)
+    if is_true > 0 >= is_false:
         return True
-    elif is_false > 0 > is_true:
+    elif is_false > 0 >= is_true:
         return False
     else:
         return None
@@ -131,3 +131,26 @@ async def parse_question(input_string: str):
         return question
     except AttributeError:
         return None
+
+
+# Test for a string or string list that is not worth processing
+def check_nil(query: str | list[str] | dict) -> bool:
+    check_list = []
+
+    if type(query) is str:
+        check_list = [query]
+    elif type(query) is list[str]:
+        check_list = query
+    elif type(query) is dict:
+        intermediate_list = query.values()
+        for item in intermediate_list:
+            check_list.append(item)
+
+    if not check_list:
+        return True
+
+    for item in check_list:
+        if not (str(item) == 'Nothing.' or str(item) == ''):
+            return False
+
+    return True

@@ -77,10 +77,10 @@ async def exchange(
     if response:
         gathered_question = await asyncio.gather(
             parse_question(response),
-            save_thought(response, loop))
+            parse_save_thought(response, loop))
         parsed_question = assure_string(gathered_question[0])
-        await save_goal(response, loop),
-        await asyncio.gather(save_speech(response), squire_queue.put(parsed_question))
+        await parse_save_goal(response, loop),
+        await asyncio.gather(parse_save_speech(response), squire_queue.put(parsed_question))
 
 
 async def send_to_squire(in_queue: asyncio.Queue):
@@ -103,7 +103,9 @@ async def send_to_squire(in_queue: asyncio.Queue):
             '-o', path['squire_out'],
             '-l', path['squire_model'],
             '-m', path['squire_template'],
-            '-q', path['squire_question']
+            '-q', path['squire_question'],
+            '-w', path['squire_keyword_template'],
+            '-v'
         )
 
         code = await run_script(path['squire'], *args, prefix=prefix)
@@ -123,36 +125,46 @@ async def new_goal(goal_list: list[str], character_text: str, language_model: an
 
 
 # Situation appraisal block
-async def appraise(answered: bool, answer_attempts: int, answers_synth: str, thoughts: dict, llm):
+async def appraise(answered: bool, answer_attempts: int, answers_synth: str, thoughts: dict, llm) -> bool:
+    print_v('Entering appraise function', params['verbose'])
     # Initialize a new goals list
     new_goal_list = {'goals': []}
 
     # Summarize our thoughts and load any goals we have
     goals_task = loop.create_task(load_json_data(path['goals']))
-    thoughts_task = loop.create_task(process(thoughts['thoughts'], llm, 'summarize'))
+    thoughts_task = loop.create_task(chunk_process(thoughts['thoughts'], llm, 'summarize'))
     goals, thoughts_sum = await asyncio.gather(goals_task, thoughts_task)
 
     # Launch goal appraisal when question was answered
-    if answered and goals['goals'] and answers_synth:
+    if answered and not check_nil(goals) and not check_nil(thoughts_sum):
         goals_with_status = await check_goals(goals['goals'], thoughts_sum, answers_synth, llm)
         new_goal_list['goals'] = goals_with_status['unmet']
+        write_goals_task = write_json_data(new_goal_list, path['goals'])
+        write_persistent_task = append_json_data(new_goal_list, 'goals', path['goals_persistent'])
+        await asyncio.gather(write_goals_task, write_persistent_task)
+        return False
 
     # If our attempts to answer a question are repeatedly frustrated, we restate our goals in a new way
-    elif answer_attempts > params['answer_attempts_max']:
-        print_v(f"Attempted to answer {answer_attempts} times - re-evaluating goal")
-        goals_sum = await process(goals['goals'], llm, 'summarize')
-        print_v(f"Restated goal: {goals_sum}", params['verbose'])
-        new_goal_list['goals'].append(goals_sum)
-        await append_json_data(goals_sum, 'goals', path['goals_persistent'])
+    # We otherwise wipe the work files clean and reset the script
+    elif answer_attempts >= params['answer_attempts_max']:
+        print_v(f"Attempted to answer {answer_attempts} times - recording failure")
+        if not check_nil(goals):
+            goals_sum = await process(goals['goals'], llm, 'summarize')
+            print_v(f"Restated goal for crumb: {goals_sum}", params['verbose'])
+            # new_goal_list['goals'].append(goals_sum)
+            crumb_task = write_crumb(goals_sum, f"{attributes['char_name']} failed to reach a goal: ")
+            reset_task = reset(loop)
+            await asyncio.gather(reset_task, crumb_task)
+            return True
 
-    await write_json_data(new_goal_list, path['goals'])
+    return False
 
 
 # Main function that runs the script
 async def main():
     # Initialize state trackers
     answer_attempts = 0
-    first_run = True
+    first_run = await reset(loop)
     answered = False
 
     # Initialize a couple of variables for safety
@@ -209,19 +221,19 @@ async def main():
         squire_task = loop.create_task(send_to_squire(squire_queue))
         await squire_task
 
-        # Do not execute appraisal code on the first run
         if first_run:
             first_run = False
-            continue
 
-        # Turn the answers into a coherent output, if there are any
-        answers_synth = await chunk_process(answers['answers'], llm, 'synthesize')
+        # Turn the answers into a coherent output, if there are enough to work with
+        if len(answers['answers']) > 0:
+            # We summarize the answers in hope of faster overall execution, but an answer list can also be supplied
+            answers_synth = await chunk_process(answers['answers'], llm, 'summarize')
 
-        # Check if question has been answered
-        [question, answered] = await check_answered(answers_synth, llm, loop)
+            # Check if question has been answered
+            [question, answered] = await check_answered(answers_synth, llm, loop)
 
-        # Launch appraisal loop
-        await appraise(answered, answer_attempts, answers_synth, thoughts, llm)
+            # Launch appraisal loop
+            first_run = await appraise(answered, answer_attempts, answers_synth, thoughts, llm)
 
 
 if __name__ == "__main__":

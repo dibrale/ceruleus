@@ -6,7 +6,7 @@ import re
 
 
 # Parse thoughts from an arbitrary string and save them to the thoughts JSON, optionally also to the persistent dialogue
-async def save_thought(input_string: str, loop: AbstractEventLoop):
+async def parse_save_thought(input_string: str, loop: AbstractEventLoop):
     # Extract the text between 'Thought: ' and 'Question:'
     result = re.search(r"Thoughts*?\s*\d*\s*:\s*\d*\s*(?P<THOUGHT>(.*?))\n*\s*\d*Question", input_string)
 
@@ -25,27 +25,19 @@ async def save_thought(input_string: str, loop: AbstractEventLoop):
     except ValueError:
         thoughts_data['thoughts'].append(thought)
 
-        write_work = loop.create_task(write_json_data(thoughts_data, path['thoughts']))
-        write_result = loop.create_task(write_json_data(thoughts_data, path['thoughts_persistent']))
-        load_convo = loop.create_task(load_json_data(path['char_log']))
+        write_work_task = loop.create_task(write_json_data(thoughts_data, path['thoughts']))
+        append_result_task = loop.create_task(append_json_data(thought, 'thoughts', path['thoughts_persistent']))
 
-        gathered_data = await asyncio.gather(write_work, write_result, load_convo)
-        convo_data_full = gathered_data[2]
+        # Prepare goal prefix for chat history, then load chat history and write to it
+        write_crumb_task = write_crumb(thought, prefix=f"{attributes['char_name']} thinks: ")
 
-        # Prepare thought string for chat history
-        thought_bubble = f"*{attributes['char_name']} thinks to herself: {thought}*"
-
-        # Load chat history and write to it
-        convo_data_full['data'].append(['', thought_bubble])
-        if params['telesend']:
-            convo_data_full['data_visible'].append(['', thought_bubble])
-        await write_json_data(convo_data_full, path['char_log'])
+        await asyncio.gather(write_work_task, append_result_task, write_crumb_task)
     finally:
         return
 
 
 # Take a string and save it in the answers JSON
-async def save_answer(input_string: str, loop: AbstractEventLoop):
+async def parse_save_answer(input_string: str, loop: AbstractEventLoop):
     input_string = input_string.strip()
 
     # Append the extracted thought to the "thoughts" list
@@ -56,14 +48,14 @@ async def save_answer(input_string: str, loop: AbstractEventLoop):
     except ValueError:
         answers_data['answers'].append(input_string)
         write_work = loop.create_task(write_json_data(answers_data, path['answers']))
-        write_persistent = loop.create_task(write_json_data(answers_data, path['answers_persistent']))
-        await asyncio.gather(write_work, write_persistent)
+        append_persistent = loop.create_task(append_json_data(input_string, 'answers', path['answers_persistent']))
+        await asyncio.gather(write_work, append_persistent)
     finally:
         return
 
 
 # Parse a goal out of an arbitrary string and save it in the goals JSON
-async def save_goal(input_string: str, loop: AbstractEventLoop):
+async def parse_save_goal(input_string: str, loop: AbstractEventLoop):
     # Extract the text 'Goal: ' and a period'
     result = re.search(r"Goals?\s*\d*\s*:\s*\d*\s*(?P<GOAL>(.*?)\.)", input_string)
 
@@ -83,27 +75,19 @@ async def save_goal(input_string: str, loop: AbstractEventLoop):
     except ValueError:
         goals_data['goals'].append(goal)
 
-        write_work = loop.create_task(write_json_data(goals_data, path['goals']))
-        write_result = loop.create_task(write_json_data(goals_data, path['goals_persistent']))
-        load_convo = loop.create_task(load_json_data(path['char_log']))
+        write_work_task = loop.create_task(write_json_data(goals_data, path['goals']))
+        append_result_task = loop.create_task(append_json_data(goals_data, 'goals', path['goals_persistent']))
 
-        gathered_data = await asyncio.gather(write_work, write_result, load_convo)
-        convo_data_full = gathered_data[2]
+        # Prepare goal prefix for chat history, then load chat history and write to it
+        write_crumb_task = write_crumb(goal, prefix=f"{attributes['char_name']} has a goal: ")
 
-        # Prepare goal string for chat history
-        thought_bubble = f"*{attributes['char_name']} has a goal: {goal}*"
-
-        # Load chat history and write to it
-        convo_data_full['data'].append(['', thought_bubble])
-        if params['telesend']:
-            convo_data_full['data_visible'].append(['', thought_bubble])
-        await write_json_data(convo_data_full, path['char_log'])
+        await asyncio.gather(write_work_task, append_result_task, write_crumb_task)
     finally:
         return
 
 
 # Write speech to the chat log
-async def save_speech(input_string: str):
+async def parse_save_speech(input_string: str):
     # Extract the text after 'Speech: '
     result = re.search(
         r"(Speech|{name})\s*\d*\s*:\s*\d*\s*({name}\s*\d*\s*:\s*\d*\s*)*(?P<SPEECH>(.*?)$)"

@@ -10,7 +10,9 @@ with open(params['char_card_path'], 'r', encoding='utf-8') as f:
 
 # Create file paths
 path = {
-    'answer_eval_template': f"{params['template_dir']}/answer_eval_template.txt",
+    'judge_template': f"{params['template_dir']}/judge_template.txt",
+    'aye_template': f"{params['template_dir']}/aye_template.txt",
+    'nay_template': f"{params['template_dir']}/nay_template.txt",
     'body_template': f"{params['template_dir']}/body_template.txt",
     'char_template': f"{params['template_dir']}/character_template.txt",
     'continue_template': f"{params['template_dir']}/continue_template.txt",
@@ -29,6 +31,7 @@ path = {
     'char_log': params['char_log_path'],
     'squire': f"{params['squire_path']}/squire.py",
     'squire_template': f"{params['squire_path']}/template.txt",
+    'squire_keyword_template': f"{params['squire_path']}/keyword_template.txt",
     'squire_question': f"{params['squire_path']}/question.txt",
     'squire_model': params['model_path']
 }

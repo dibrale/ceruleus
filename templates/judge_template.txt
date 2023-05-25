@@ -1,0 +1,10 @@
+### Instruction:
+
+Below are a question and reply, as well as arguments for and against whether the reply answered the question. Use the arguments to determine whether the reply answers the question or not. Respond with 'True' if the reply answers the question, or 'False' if the reply does not answer the question. Your response should be either 'True' or 'False'. Do not respond with any other text.
+
+### Input:
+
+{input_text}
+
+### Response:
+
