@@ -2,16 +2,15 @@
     {
         "script_name": "ceruleus",
         "verbose": false,
-        "CUDA_VISIBLE_DEVICES": 1,
+        "CUDA_VISIBLE_DEVICES": 01,
         "results_dir": "results",
         "work_dir": "work",
         "template_dir": "templates",
-        "char_card_path": "/home/admin/one-click-installers-oobabooga-linux/text-generation-webui/characters/Caprina.json",
-        "char_log_path": "/home/admin/one-click-installers-oobabooga-linux/text-generation-webui/logs/Caprina_persistent.json",
+        "char_card_path": "character.json",
+        "char_log_path": "persistent.json",
         "squire_path": "squire",
         "squire_out_dir": "squire_output",
-        "unused": "/home/admin/one-click-installers-oobabooga-linux/text-generation-webui/models/gpt4-alpaca-lora_mlp-65B-ggmlv3-q5_1/gpt4-alpaca-lora_mlp-65B.ggmlv3.q5_1.bin",
-        "model_path": "/home/admin/one-click-installers-oobabooga-linux/text-generation-webui/models/llama-30b-supercot-ggmlv3-q5_1/ggmlv3_model_q5_1.bin",
+        "model_path": "ggmlv3_model_q5_1.bin",
         "telesend": false,
         "retry_delay": 10,
         "answer_attempts_max": 2
@@ -24,6 +23,6 @@
         "temperature": 0.4,
         "n_batch": 700,
         "n_threads": 8,
-		"n_gpu_layers": 10
+	"n_gpu_layers": 0
     }
 ]
