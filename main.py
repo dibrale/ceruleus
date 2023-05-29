@@ -108,14 +108,21 @@ async def send_to_squire(in_queue: asyncio.Queue):
             '-v'
         )
 
-        code = await run_script(path['squire'], *args, prefix=prefix)
-
-        # Handle Squire failing by writing an output file communicating that
-        if code != 0:
+        # Handle a blank input, i.e. during first iteration
+        if text.strip() == '':
             await write_text_file(
-                'Could not return an answer. Try rephrasing your question and asking again.',
+                'You have yet to ask a question.',
                 path['squire_out']
             )
+        else:
+            code = await run_script(path['squire'], *args, prefix=prefix)
+
+            # Handle Squire failing by writing an output file communicating that
+            if code != 0:
+                await write_text_file(
+                    'Could not return an answer. Try rephrasing your question and asking again.',
+                    path['squire_out']
+                )
     await asyncio.sleep(0)
 
 
@@ -140,7 +147,7 @@ async def appraise(answered: bool, answer_attempts: int, answers_synth: str, tho
         goals_with_status = await check_goals(goals['goals'], thoughts_sum, answers_synth, llm)
         new_goal_list['goals'] = goals_with_status['unmet']
         write_goals_task = write_json_data(new_goal_list, path['goals'])
-        write_persistent_task = append_json_data(new_goal_list, 'goals', path['goals_persistent'])
+        write_persistent_task = append_json_data(new_goal_list['goals'], 'goals', path['goals_persistent'])
         await asyncio.gather(write_goals_task, write_persistent_task)
         return False
 
@@ -174,7 +181,7 @@ async def main():
     statement, body, chara_text = await asyncio.gather(
         read_text_file(path['statement_template']),
         read_text_file(path['body_template']),
-        read_text_file(path['char_template'])
+        read_text_file(path['char_template']),
     )
 
     # Create LLM for use by appraisal functions

@@ -76,7 +76,7 @@ async def parse_save_goal(input_string: str, loop: AbstractEventLoop):
         goals_data['goals'].append(goal)
 
         write_work_task = loop.create_task(write_json_data(goals_data, path['goals']))
-        append_result_task = loop.create_task(append_json_data(goals_data, 'goals', path['goals_persistent']))
+        append_result_task = loop.create_task(append_json_data(goals_data['goals'], 'goals', path['goals_persistent']))
 
         # Prepare goal prefix for chat history, then load chat history and write to it
         write_crumb_task = write_crumb(goal, prefix=f"{attributes['char_name']} has a goal: ")
