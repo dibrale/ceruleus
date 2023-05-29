@@ -8,7 +8,7 @@ from watchdog.events import FileSystemEventHandler
 
 from modules.config import params, path
 from modules.logutils import print_v
-from modules.rwutils import read_text_file, write_json_data
+from modules.rwutils import read_text_file, write_json_data, write_text_file
 from modules.saveutils import parse_save_answer
 
 
@@ -91,11 +91,12 @@ async def run_script(script_path, *args, interpreter="python", prefix=''):
     return subprocess.returncode
 
 
-# Initialize the work files
+# Initialize the work files and clear the Squire question file
 async def reset(loop: AbstractEventLoop) -> bool:
     print_v("Initializing the work files")
     clear_answers_task = loop.create_task(write_json_data({'answers': []}, path['answers']))
     clear_thoughts_task = loop.create_task(write_json_data({'thoughts': []}, path['thoughts']))
     clear_goals_task = loop.create_task(write_json_data({'goals': []}, path['goals']))
-    await asyncio.gather(clear_answers_task, clear_thoughts_task, clear_goals_task)
+    clear_question = loop.create_task(write_text_file('', path['squire_question']))
+    await asyncio.gather(clear_answers_task, clear_thoughts_task, clear_goals_task, clear_question)
     return True
