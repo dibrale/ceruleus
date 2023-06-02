@@ -1,0 +1,11 @@
+### Instructions:
+
+Given the character description and their situation with respect to specific goals, write their next goal.
+
+### Input:
+
+{input_text}
+
+### Response:
+
+Goal:

@@ -1,3 +1,4 @@
+from modules.config import params, webui_params
 from modules.logutils import print_v
 from modules.tokenutils import llama_token_length
 
@@ -8,36 +9,17 @@ import sys
 
 
 # Sends aggregated text to the large language model's API
-# TODO: Un-hardcode parameters
 async def send_to_llm(aggregated_text: str, loop: asyncio.AbstractEventLoop):
     host = 'localhost:5005'
     uri = f'ws://{host}/api/v1/stream'
 
-    request = {
-        'prompt': aggregated_text,
-        'max_new_tokens': 200,
-        'do_sample': True,
-        'temperature': 0.7,
-        'top_p': 0.5,
-        'typical_p': 0.6,
-        'repetition_penalty': 1.18,
-        'encoder_repetition_penalty': 1.05,
-        'top_k': 15,
-        'min_length': 0,
-        'no_repeat_ngram_size': 0,
-        'num_beams': 1,
-        'penalty_alpha': 2.5,
-        'length_penalty': 1,
-        'early_stopping': False,
-        'seed': -1,
-        'add_bos_token': False,
-        'truncation_length': 1800,
-        'ban_eos_token': False,
-        'skip_special_tokens': True,
-        'stopping_strings': ['[END]', 'end(code)']
-    }
+    request = {'prompt': aggregated_text, **webui_params}
 
-    async with websockets.connect(uri, ping_interval=15, ping_timeout=60) as websocket:
+    async with websockets.connect(
+            uri,
+            ping_interval=params['ping_interval'],
+            ping_timeout=params['ping_timeout']
+    ) as websocket:
         print_v(f'Sending request to {host}')
         await websocket.send(json.dumps(request))
         print_v(f'Awaiting response')
@@ -72,6 +54,6 @@ async def print_response_stream(prompt, queue: asyncio.Queue, loop: asyncio.Abst
 
 
 # Just print out the prompt you would send for debugging
-def dummy_send_to_llm(aggregated_text: str):
+def dummy_send_to_webui(aggregated_text: str):
     print(aggregated_text)
     print(f"Tokens: {llama_token_length(aggregated_text)}")

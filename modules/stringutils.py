@@ -150,7 +150,7 @@ def check_nil(query: str | list[str] | dict) -> bool:
         return True
 
     for item in check_list:
-        if not (str(item) == 'Nothing.' or str(item) == ''):
+        if not (str(item) == 'Nothing.' or str(item) == '' or not item):
             return False
 
     return True

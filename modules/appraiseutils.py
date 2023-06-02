@@ -84,21 +84,18 @@ async def chunk_process(
         return processed_chunks
     if summarize_chunks:
         try:
-            summary = await process(processed_chunks, language_model, 'summarize')
+            summary = await process(processed_chunks, language_model)
             return summary
         except ValueError as e:
             print_v(f"{e} - returning string of chunks instead")
     return list_or_str_to_str(processed_chunks)
 
 
-# Function to prepare the advocate template
-
 # Function to determine whether a question was answered
 async def is_answered(
         question: str,
         answer: str | list[str],
-        language_model: any,
-        loop: AbstractEventLoop
+        language_model: any
 ) -> bool | None:
 
     # Listify the answer text
@@ -113,10 +110,6 @@ async def is_answered(
         # Prepare the question and answer for input
         input_text = \
             f"Question: {question.strip()}\n\nAnswer: {list_or_str_to_str(candidate, if_blank='Nothing.').strip()}"
-
-        # Create argument and judge tasks
-        # aye_task = loop.create_task(process(input_text, language_model, 'aye'))
-        # nay_task = loop.create_task(process(input_text, language_model, 'nay'))
 
         # Serial execution only - for now
         aye = await process(input_text, language_model, 'aye')
@@ -271,18 +264,43 @@ async def check_goals(
 
 
 # Check if the question currently written for Squire has been answered. If yes, write a crumb and clear the answers.
-async def check_answered(answers: str | list[str], llm: any, loop: AbstractEventLoop) -> [str, bool]:
+async def check_answered(answers: str | list[str], llm: any) -> [str, bool]:
     # Synthesize reply from list if necessary rather than just concatenating it
     if type(answers) is list[str]:
         answer = await chunk_process(answers, llm, 'synthesize')
     else:
         answer = answers
     question = await read_text_file(path['squire_question'])
-    answered = await is_answered(question, answer, llm, loop)
+    answered = await is_answered(question, answer, llm)
 
     if answered:
         crumb_string = f"A question has been answered. "
-        crumb_task = loop.create_task(write_crumb(f"\nQuestion: {question}\nAnswer: {answer}", prefix=crumb_string))
-        clear_answers_task = loop.create_task(write_json_data({'answers': []}, path['answers']))
+        crumb_task = write_crumb(f"\nQuestion: {question}\nAnswer: {answer}", prefix=crumb_string)
+        clear_answers_task = write_json_data({'answers': []}, path['answers'])
         await asyncio.gather(crumb_task, clear_answers_task)
     return [question, answered]
+
+
+# Set a new goal given a character description, some met goals and some failed goals
+async def new_goal(
+        met_goal_list: list[str],
+        failed_goal_list: list[str],
+        character_text: str,
+        language_model: any
+) -> str:
+    print_v("Generating a new goal", params['verbose'])
+    input_lines = [f"Character Description:\n{character_text}"]
+    bullet = f"\n- "
+    if not check_nil(met_goal_list):
+        try:
+            input_lines.append(f"\nGoals met: {bullet.join(met_goal_list)}")
+        except TypeError:
+            pass
+    if not check_nil(failed_goal_list):
+        try:
+            input_lines.append(f"\nGoals failed: {bullet.join(failed_goal_list)}")
+        except TypeError:
+            pass
+
+    output = await process('\n\n'.join(input_lines), language_model, 'set_goal')
+    return output

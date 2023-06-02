@@ -54,7 +54,7 @@ async def monitor_directory(
     # Monitoring is accomplished using a listener
     event_handler = NewFileHandler(file_queue, text_queue, loop)
     observer = Observer()
-    observer.schedule(event_handler, dir_path, recursive=False)
+    observer.schedule(event_handler, dir_path)
     observer.start()
 
     try:
