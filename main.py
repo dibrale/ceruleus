@@ -1,4 +1,3 @@
-# import asyncio
 import os
 from pathlib import Path
 from shutil import copyfile
@@ -10,7 +9,7 @@ from modules.tokenutils import *
 from modules.stringutils import *
 from modules.appraiseutils import *
 from modules.scriptutils import *
-from modules.api import start_server, fake_signal_manager, signal_manager
+from modules.api import start_server, signal_manager
 
 from modules.config import params, attributes, path
 
