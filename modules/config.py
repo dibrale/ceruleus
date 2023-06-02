@@ -2,7 +2,7 @@ import json
 
 # Load parameter file
 with open('params.json', 'r', encoding='utf-8') as f:
-    [params, llm_params] = json.load(f)
+    [params, llm_params, webui_params] = json.load(f)
 
 # Load the character sheet once
 with open(params['char_card_path'], 'r', encoding='utf-8') as f:
@@ -18,12 +18,15 @@ path = {
     'continue_template': f"{params['template_dir']}/continue_template.txt",
     'goal_eval_template': f"{params['template_dir']}/goal_eval_template.txt",
     'goal_thought_eval_template': f"{params['template_dir']}/goal_thought_eval_template.txt",
+    'set_goal_template': f"{params['template_dir']}/set_goal_template.txt",
     'statement_template': f"{params['template_dir']}/statement_template.txt",
     'summarize_template': f"{params['template_dir']}/summarize_template.txt",
     'synthesize_template': f"{params['template_dir']}/synthesize_template.txt",
     'char_card': params['char_card_path'],
     'thoughts': f"{params['work_dir']}/thoughts.json",
     'goals': f"{params['work_dir']}/goals.json",
+    'goals_met': f"{params['results_dir']}/goals_met.json",
+    'goals_failed': f"{params['results_dir']}/goals_failed.json",
     'answers': f"{params['work_dir']}/answers.json",
     'thoughts_persistent': f"{params['results_dir']}/thoughts.json",
     'goals_persistent': f"{params['results_dir']}/goals.json",
