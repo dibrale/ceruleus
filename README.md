@@ -28,6 +28,7 @@ Edit the params.json file before running Ceruleus to reflect your setup, with pa
 | Parameter | Type | Default | Description |
 | ------------- | ------------- | ------------- | ------------- |
 | script_name | String | ceruleus | The name of the script as it appears on every line of terminal output. |
+| port | Integer | 1230 | Port on which to run the server API |
 | verbose | Boolean | false | Set to enable additional terminal output for debugging. |
 | CUDA_VISIBLE_DEVICES | String | 0 | Comma-separated list of all CUDA devices that should be visible to Ceruleus (eg. use '0,1' if you have two GPUs and want both to be detectable). Passes the shell variable of the same name on execution of external scripts. | 
 | results_dir | String | results | Path to results directory. |
@@ -53,15 +54,16 @@ Included in this parameter file is another object containing parameters used by 
 | temperature | Float | 0.4 |
 | n_batch | Integer | 700 |
 | n_threads | Integer | 8 |
+| n_gpu_layers | Integer 10 |
 
-Additional Llama parameters that can be passed by LangChain to llama.cpp can be included in this object.
+Additional Llama parameters that can be passed by LangChain to llama.cpp can be included in this object. The final object in the parameter file contains all the parameters that can be passed to [text-generation-webui](https://github.com/oobabooga/text-generation-webui). See the repository of that project for details regarding these.
 
 ## Operation
 This software is a work in progress, so a number of convenience features are absent at the time of this writing.
 
 ![Entity flow diagram of the main loop](https://github.com/dibrale/ceruleus/blob/main/ceruleus_plan.drawio.svg)
 
-Note that this main loop diagram does not yet include appraisal code and associated flow control.
+Note that this main loop diagram does not yet include appraisal code, goal setting code, API elements and associated flow control.
 
 ### Precautions
 
