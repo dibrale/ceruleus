@@ -1,3 +1,4 @@
+from modules.api import signal
 from modules.config import params, webui_params
 from modules.logutils import print_v
 from modules.tokenutils import llama_token_length
@@ -44,6 +45,7 @@ async def send_to_llm(aggregated_text: str, loop: asyncio.AbstractEventLoop):
 
 
 async def print_response_stream(prompt, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop) -> bool:
+    await signal('webui')
     response_final = ''
     async for response in send_to_llm(prompt, loop):
         print(response, end='')

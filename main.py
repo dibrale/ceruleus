@@ -9,7 +9,7 @@ from modules.tokenutils import *
 from modules.stringutils import *
 from modules.appraiseutils import *
 from modules.scriptutils import *
-from modules.api import start_server, signal_manager
+from modules.api import start_server, signal_manager, signal
 
 from modules.config import params, attributes, path
 
@@ -85,6 +85,7 @@ async def exchange(
 
 
 async def send_to_squire(in_queue: asyncio.Queue):
+    await signal('squire')
     text = await in_queue.get()
     if text == '' or not text:
         print_v('Continuing without asking a question - writing loopback reply')
@@ -257,6 +258,7 @@ async def main():
             # Await tasks for getting the prompt, processing it, then sending the reply to Squire
             aggregate_put_task = aggregate_queue.put(prompt)
             await aggregate_put_task
+            await signal('')
             await exchange_task
 
         else:

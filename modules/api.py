@@ -98,7 +98,7 @@ async def get_signal(key):
 
 # Wait at the semaphore
 async def signal(key, go_value=True, go_on_none=False, check_frequency=0.25):
-    print_v(f"Waiting at semaphore for {key}:{go_value}", params['verbose'])
+    print_wait = True
     while True:
         sig = await get_signal(key)
         if sig == go_value:
@@ -106,4 +106,6 @@ async def signal(key, go_value=True, go_on_none=False, check_frequency=0.25):
         elif isinstance(sig, type(None)) and go_on_none:
             break
         await asyncio.sleep(check_frequency)
+        print_v(f"Waiting at semaphore for {key}:{go_value}", print_wait)
+        print_wait = False
     print_v(f"Semaphore cleared with {key}:{sig}", params['verbose'])
