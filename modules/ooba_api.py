@@ -1,4 +1,4 @@
-from modules.api import signal
+from modules.sigutils import signal
 from modules.config import params, webui_params
 from modules.logutils import print_v
 from modules.tokenutils import llama_token_length
@@ -48,7 +48,7 @@ async def print_response_stream(prompt, queue: asyncio.Queue, loop: asyncio.Abst
     await signal('webui')
     response_final = ''
     async for response in send_to_llm(prompt, loop):
-        print(response, end='')
+        print(response, end='', file=sys.stderr)
         response_final += response
         await loop.run_in_executor(None, sys.stdout.flush)  # If we don't flush, we won't see tokens in realtime.
     await queue.put(response_final)

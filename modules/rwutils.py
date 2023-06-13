@@ -1,8 +1,9 @@
+import json
 from json import JSONDecodeError
 
 from modules.logutils import print_v
 from modules.stringutils import assure_string
-from modules.config import *
+from modules.config import params
 import aiofiles
 
 

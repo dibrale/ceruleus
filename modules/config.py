@@ -1,12 +1,19 @@
 import json
+import asyncio
 
 # Load parameter file
-with open('params.json', 'r', encoding='utf-8') as f:
-    [params, llm_params, webui_params] = json.load(f)
+try:
+    with open('params.json', 'r', encoding='utf-8') as f:
+        [params, llm_params, webui_params] = json.load(f)
+except Exception as e:
+    print(e)
 
 # Load the character sheet once
-with open(params['char_card_path'], 'r', encoding='utf-8') as f:
-    attributes = json.load(f)
+try:
+    with open(params['char_card_path'], 'r', encoding='utf-8') as f:
+        attributes = json.load(f)
+except Exception as e:
+    print(e)
 
 # Create file paths
 path = {
@@ -38,3 +45,7 @@ path = {
     'squire_question': f"{params['squire_path']}/question.txt",
     'squire_model': params['model_path']
 }
+
+file_queue, text_queue, squire_queue, response_queue, aggregate_queue, send_queue, receive_queue \
+    = (asyncio.Queue(), asyncio.Queue(), asyncio.Queue(), asyncio.Queue(),
+       asyncio.Queue(), asyncio.Queue(), asyncio.Queue(),)

@@ -1,4 +1,9 @@
-from modules.config import attributes, params
+try:
+    from modules.config import attributes, params
+except ImportError:
+    attributes = {}
+    params = {}
+
 from modules.logutils import print_v
 from modules.tokenutils import llama_token_length
 
@@ -134,12 +139,12 @@ async def parse_question(input_string: str):
 
 
 # Test for a string or string list that is not worth processing
-def check_nil(query: str | list[str] | dict) -> bool:
+def check_nil(query: str | list | dict) -> bool:
     check_list = []
 
     if type(query) is str:
         check_list = [query]
-    elif type(query) is list[str]:
+    elif type(query) is list:
         check_list = query
     elif type(query) is dict:
         intermediate_list = query.values()

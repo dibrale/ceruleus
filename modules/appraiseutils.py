@@ -6,6 +6,8 @@ from langchain import LLMChain, LlamaCpp, PromptTemplate
 from langchain.callbacks.base import BaseCallbackManager
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 
+from modules.api import send_update
+from modules.config import path, llm_params
 from modules.rwutils import *
 from modules.stringutils import list_or_str_to_str, bool_from_str, check_nil
 from modules.tokenutils import llama_chunk, llama_token_length
@@ -112,13 +114,17 @@ async def is_answered(
             f"Question: {question.strip()}\n\nAnswer: {list_or_str_to_str(candidate, if_blank='Nothing.').strip()}"
 
         # Serial execution only - for now
+        await send_update('aye_start')
         aye = await process(input_text, language_model, 'aye')
+        await send_update('nay_start')
         nay = await process(input_text, language_model, 'nay')
 
         # Initialize and run the judge
         judge_input = f"{input_text}\n\nArgument in favor: {aye}\n\n Argument against: {nay}"
+        await send_update('judge_start')
         verdict_txt = await process(judge_input, language_model, 'judge')
         verdict = bool_from_str(verdict_txt)
+        await send_update('verdict_done')
 
         # Kill the function and return true if an answer is found
         if verdict:
@@ -194,7 +200,7 @@ async def goal_met(
         answers: str | list[str],
         language_model: any
 ) -> bool | None:
-
+    await send_update('start')
     # Prepare goal, thoughts and answers for input
     goal_text = f"Goal: {goal.strip()}"
     thought_text = f"Thoughts: {list_or_str_to_str(thoughts.strip(), if_blank='None.').strip()}"
@@ -225,6 +231,7 @@ async def goal_met(
 
     print_v(f"Goal has {modifier}been met", not params['verbose'])
     print_v(f"Goal has {modifier}been met: {goal}", params['verbose'])
+    await send_update('stop')
 
     return met_out
 
@@ -238,7 +245,6 @@ async def check_goals(
         uncertain_is_met=False,
         write_crumbs=True
 ) -> {str: list[str]}:
-
     # Initialize the two buckets
     goals_met = []
     goals_unmet = []
@@ -252,6 +258,7 @@ async def check_goals(
         if met:
             goals_met.append(goal)
             if write_crumbs:
+                await send_update('goal_met')
                 await write_crumb(
                     f"{goal}. Summary of my thoughts just before meeting this goal: {list_or_str_to_str(thoughts)}",
                     prefix=f"A goal has been met: ")
@@ -288,6 +295,7 @@ async def new_goal(
         character_text: str,
         language_model: any
 ) -> str:
+    await send_update('start')
     print_v("Generating a new goal", params['verbose'])
     input_lines = [f"Character Description:\n{character_text}"]
     bullet = f"\n- "
@@ -303,4 +311,5 @@ async def new_goal(
             pass
 
     output = await process('\n\n'.join(input_lines), language_model, 'set_goal')
+    await send_update('stop')
     return output

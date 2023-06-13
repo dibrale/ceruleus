@@ -1,5 +1,10 @@
+import sys
+import inspect
 from datetime import datetime
-from modules.config import params
+try:
+    from modules.config import params
+except FileNotFoundError or ImportError:
+    params = {'script_name': 'script'}
 
 
 # Some timestamp generators
@@ -17,10 +22,20 @@ def log_date_time():
     yield f"{next(long_date())}, {next(time())}: "
 
 
+def log_timestamp():
+    now = datetime.now()
+    yield datetime.timestamp(now)
+
+
 # Log printing function with options
 def print_v(item, verbose_flag=True, out_handle=params['script_name'], timestamp=True):
     prefix = f"[{out_handle}] "
     if timestamp:
         prefix += next(log_date_time())
     if verbose_flag:
-        print(prefix + str(item))
+        print(prefix + str(item), file=sys.stderr)
+
+
+def get_fcn_name():
+    frame = inspect.stack()
+    return frame[2].function

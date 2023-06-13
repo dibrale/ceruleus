@@ -6,10 +6,12 @@ from watchdog.observers import Observer
 
 from watchdog.events import FileSystemEventHandler
 
+from modules.api import send_update
 from modules.config import params, path
 from modules.logutils import print_v
 from modules.rwutils import read_text_file, write_json_data, write_text_file
 from modules.saveutils import parse_save_answer
+from modules.sigutils import get_signal
 
 
 # Custom event handler class that triggers when a new file is created
@@ -23,6 +25,11 @@ class NewFileHandler(FileSystemEventHandler):
     # Asynchronously called when a new file is detected
     async def _on_any_event_async(self, event):
 
+        # Ignore events in monitored directory while paused
+        signal = await get_signal('pause')
+        if not signal:
+            return
+
         delta = datetime.now() - self.last_modified
         if datetime.now() - self.last_modified < timedelta(seconds=1):
             print_v(f"Additional event detected, but suppressed: {event.src_path}", params['verbose'])
@@ -32,6 +39,7 @@ class NewFileHandler(FileSystemEventHandler):
             self.last_modified = datetime.now()
 
         if event.src_path.endswith('.txt'):
+            await send_update(name='squire_listener')
             print_v('Text file modified: ' + event.src_path)
             content = await read_text_file(event.src_path)
             answer_task = parse_save_answer(content, self.loop)

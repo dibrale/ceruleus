@@ -1,111 +1,161 @@
 import functools
-from asyncio import AbstractEventLoop
 
 from websockets.exceptions import ConnectionClosed
+from websockets.legacy.client import WebSocketClientProtocol
 from websockets.legacy.server import WebSocketServerProtocol
 
-from modules.config import params
-from modules.logutils import print_v
+from modules.config import send_queue, receive_queue
+from modules.logutils import print_v, get_fcn_name, log_timestamp
+from modules.sigutils import connection
 
 import asyncio
 import websockets.server
 import json
 
-# Make the API semaphore
-semaphore = {
-    'pause': False,
-    'webui': True,
-    'squire': True
-}
 
-
-async def receive_data(websocket: WebSocketServerProtocol, receive_queue: asyncio.Queue):
+async def receive_request(websocket: WebSocketServerProtocol, queue: asyncio.Queue):
     try:
-        json_data = await websocket.recv()
-        data = json.loads(json_data)
-        print_v(f"Received {type(data)} from websocket", params['verbose'])
-        await receive_queue.put(data)
-    except ConnectionClosed as e:
+        async for message in websocket:
+            data = json.loads(message)
+            print_v(f"Received {str(data)} from websocket")
+            await queue.put(data)
+            return str(data)
+    except ConnectionClosed or AttributeError as e:
         print_v(e)
+        await asyncio.sleep(0)
+
+
+async def send_data(websocket: WebSocketServerProtocol, queue: asyncio.Queue):
+    out = await queue.get()
+    if connection['live'] or 'id' in out.keys() or 'echo' in out.keys():
+        print_v(f"Sending {str(out)} to websocket")
+        try:
+            await websocket.send(json.dumps(out))
+        except ConnectionClosed as e:
+            print_v(e)
+            # Replace the outgoing message in the queue if it could not be sent
+            # await queue.put(out)
     await asyncio.sleep(0)
 
 
-async def send_data(websocket: WebSocketServerProtocol, send_queue: asyncio.Queue):
-    out = await send_queue.get()
-    print_v(f"Sending {str(out)} to websocket", params['verbose'])
+async def send_request(websocket: WebSocketClientProtocol, message: dict | asyncio.Queue, outcome_queue: asyncio.Queue):
+    if type(message) is dict:
+        out = message
+    elif type(message) is asyncio.Queue:
+        out = await message.get()
+    else:
+        raise TypeError(
+            f"send() got message of type {type(message)} as input. Input should be a dict or asyncio.Queue of dicts.")
+
+    if type(out) is dict:
+        for key in out.keys():
+            if key == 'dummy':
+                return
+
+        print(f"Sending {str(out)} to websocket")
     try:
-        await websocket.send(json.dumps(out))
-    except ConnectionClosed as e:
-        print_v(e)
-        # Replace the outgoing message in the queue if it could not be sent
-        await send_queue.put(out)
-    await asyncio.sleep(0)
+        async with websocket as socket:
+            await socket.send(json.dumps(out))
+    except OSError as e:
+        await outcome_queue.put({'Exception': e})
+
+
+async def receive_data(websocket: WebSocketClientProtocol, in_queue: asyncio.Queue):
+    out = {}
+    async with websocket as socket:
+        try:
+            message = await socket.recv()
+            print('Incoming message received. Decoding.')
+            decoded_message = json.loads(message)
+            print(f"Received {decoded_message} from {socket}")
+            out.update(decoded_message)
+        except Exception as e:
+            print(e)
+            await asyncio.sleep(1)
+    if out:
+        await in_queue.put(out)
 
 
 # Websockets handler
 async def handler(
-        websocket,
-        send_queue: asyncio.Queue,
-        receive_queue: asyncio.Queue,
-        loop: AbstractEventLoop):
-    receiver_task = loop.create_task(receive_data(websocket, receive_queue))
-    sender_task = loop.create_task(send_data(websocket, send_queue))
-    done, pending = await asyncio.wait([receiver_task, sender_task], return_when=asyncio.FIRST_COMPLETED)
+        websocket: (WebSocketClientProtocol | WebSocketServerProtocol | None),
+        uri: str | None,
+        queue_out: asyncio.Queue,
+        queue_in: asyncio.Queue,
+        tx_fcn: (WebSocketServerProtocol | WebSocketClientProtocol, asyncio.Queue),
+        rx_fcn: (WebSocketServerProtocol | WebSocketClientProtocol, asyncio.Queue),
+        outcome_queue=None,
+):
+    # rx = functools.partial(rx_fcn, websocket, queue_in)
+
+    async def rx(socket):
+        await rx_fcn(socket, queue_in)
+
+    if type(outcome_queue) is asyncio.Queue:
+        async def tx(socket):
+            await tx_fcn(socket, queue_out, outcome_queue)
+    else:
+        async def tx(socket):
+            await tx_fcn(socket, queue_out)
+
+    if websocket:
+        done, pending = await asyncio.wait([rx(websocket), tx(websocket)], return_when=asyncio.FIRST_COMPLETED)
+    elif uri:
+        with websockets.WebSocketClientProtocol.connect(uri=uri) as socket:
+            done, pending = await asyncio.wait([rx(socket), tx(socket)], return_when=asyncio.FIRST_COMPLETED)
+
+    for task in done:
+        print(f"Finished task {str(task)}")
+
     for task in pending:
         task.cancel()
+        print(f"Cancelling pending task {str(task)}")
     await asyncio.sleep(0)
 
 
 async def start_server(
-        send_queue: asyncio.Queue,
-        receive_queue: asyncio.Queue,
-        loop: AbstractEventLoop,
+        tx_fcn: (WebSocketServerProtocol, asyncio.Queue),
+        rx_fcn: (WebSocketServerProtocol, asyncio.Queue),
         host="localhost",
         port=1230):
     print_v(f"Starting server at {host}:{port}")
 
-    queued_handler = functools.partial(handler, send_queue=send_queue, receive_queue=receive_queue, loop=loop)
+    async def server_handler(websocket):
+        await handler(websocket, None, send_queue, receive_queue, tx_fcn, rx_fcn)
+
+    await websockets.server.serve(server_handler, host, port, open_timeout=None, close_timeout=None, ping_interval=None, ping_timeout=None)
+    await asyncio.sleep(2)
+
+    # stop = asyncio.Future()
+    # while True:
+    '''
+    loop = asyncio.get_event_loop()
+    serve = functools.partial(websockets.server.serve, queued_handler, host, port, compression=None, open_timeout=None, ping_timeout=None, ping_interval=None)
+    print_v('Awaiting server routine')
+    await serve()
+    print_v('Server routine done')
+    '''
+
+    '''
     stop = asyncio.Future()
-    async with websockets.server.serve(queued_handler, host, port):
+    async with websockets.server.serve(queued_handler, host, port, compression=None, open_timeout=None, ping_timeout=None, ping_interval=None):
         await stop
+    '''
 
 
-# Fake signal manager for testing. Just prints the signal and does nothing
-async def fake_signal_manager(receive_queue: asyncio.Queue):
-    while True:
-        item = await receive_queue.get()
-        print(f"Got signal type {type(item)} from queue\nContents: {str(item)}")
-        await asyncio.sleep(0)
+# Define the update function here to use local queue context
+async def send_update(status='event', name=''):
+    # Create message template for coroutine reporting
 
+    if name:
+        out_name = name
+    else:
+        out_name = get_fcn_name()
 
-# The actual signal manager. Updates the internal semaphore
-async def signal_manager(receive_queue: asyncio.Queue):
-    while True:
-        item = await receive_queue.get()
-        print_v(f"Got signal type {type(item)} from queue\nContents: {str(item)}", params['verbose'])
-        for key in item.keys():
-            semaphore.update({key: item[key]})
-        await asyncio.sleep(0)
+    coro_status = {
+        'id': out_name,
+        'status': status,
+        'timestamp': next(log_timestamp())
+    }
 
-
-# Get a semaphore signal
-async def get_signal(key):
-    try:
-        return semaphore[key]
-    except KeyError:
-        return None
-
-
-# Wait at the semaphore
-async def signal(key, go_value=True, go_on_none=False, check_frequency=0.25):
-    print_wait = True
-    while True:
-        sig = await get_signal(key)
-        if sig == go_value:
-            break
-        elif isinstance(sig, type(None)) and go_on_none:
-            break
-        await asyncio.sleep(check_frequency)
-        print_v(f"Waiting at semaphore for {key}:{go_value}", print_wait)
-        print_wait = False
-    print_v(f"Semaphore cleared with {key}:{sig}", params['verbose'])
+    await send_queue.put(coro_status)

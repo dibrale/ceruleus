@@ -9,13 +9,16 @@ from modules.tokenutils import *
 from modules.stringutils import *
 from modules.appraiseutils import *
 from modules.scriptutils import *
-from modules.api import start_server, signal_manager, signal
+from modules.api import start_server, send_data, receive_request
+from modules.sigutils import signal_manager, signal
 
-from modules.config import params, attributes, path
+from modules.config import params, attributes, path, file_queue, text_queue, squire_queue, response_queue, \
+    aggregate_queue, send_queue, receive_queue
 
 
 # Aggregates text content from the queue
 async def aggregate_text(statement, text, body, chara_text, thoughts, answers, convo) -> str:
+    await send_update()
     print_v("Aggregator waiting for text", params['verbose'])
 
     # Make timestamp
@@ -59,20 +62,22 @@ async def aggregate_text(statement, text, body, chara_text, thoughts, answers, c
 # Function to handle rx/tx to the user-facing LLM
 async def exchange(
         aggregated_queue: asyncio.Queue,
-        response_queue: asyncio.Queue,
-        squire_queue: asyncio.Queue,
+        webui_queue: asyncio.Queue,
+        script_queue: asyncio.Queue,
         retry_delay=params['retry_delay']
 ):
     aggregated_text = await aggregated_queue.get()
     response_done = False
+    await send_update('start', 'webui')
     while not response_done:
         try:
-            response_done = await print_response_stream(assure_string(aggregated_text), response_queue, loop)
+            response_done = await print_response_stream(assure_string(aggregated_text), webui_queue, loop)
         except ConnectionError as e:
             print_v(e)
             print_v(f'Waiting for {retry_delay} seconds, then trying again')
             await asyncio.sleep(retry_delay)
-    response = await response_queue.get()
+    response = await webui_queue.get()
+    await send_update('stop', 'webui')
 
     # Functions that write to the same file are staggered
     if response:
@@ -81,7 +86,7 @@ async def exchange(
             parse_save_thought(response, loop))
         parsed_question = assure_string(gathered_question[0])
         await parse_save_goal(response, loop),
-        await asyncio.gather(parse_save_speech(response), squire_queue.put(parsed_question))
+        await asyncio.gather(parse_save_speech(response), script_queue.put(parsed_question))
 
 
 async def send_to_squire(in_queue: asyncio.Queue):
@@ -117,7 +122,9 @@ async def send_to_squire(in_queue: asyncio.Queue):
                 path['squire_out']
             )
         else:
+            await send_update('start')
             code = await run_script(path['squire'], *args, prefix=prefix)
+            await send_update('stop')
 
             # Handle Squire failing by writing an output file communicating that
             if code != 0:
@@ -139,8 +146,11 @@ async def appraise(answered: bool, answer_attempts: int, answers_synth: str, tho
     thoughts_task = chunk_process(thoughts['thoughts'], llm)
     failed_goals_task = load_json_data(path['goals_failed'])
     met_goals_task = load_json_data(path['goals_met'])
+
+    await send_update('start', 'thoughts_sum')
     goals, thoughts_sum, failed_goals_list, met_goals_list = await asyncio.gather(
         goals_task, thoughts_task, failed_goals_task, met_goals_task)
+    await send_update('stop', 'thoughts_sum')
 
     # Launch goal appraisal when question was answered
     if answered and not check_nil(goals) and not check_nil(thoughts_sum):
@@ -173,11 +183,14 @@ async def appraise(answered: bool, answer_attempts: int, answers_synth: str, tho
     elif answer_attempts >= params['answer_attempts_max']:
         print_v(f"Attempted to answer {answer_attempts} times - recording failure")
         if not check_nil(goals):
+            await send_update('start', 'goals_sum')
             goals_sum = await process(goals['goals'], llm)
+            await send_update('stop', 'goals_sum')
 
             print_v(f"Restated goal for crumb: {goals_sum}", params['verbose'])
             failed_goals_list['goals'].append(goals['goals'])
 
+            await send_update('goal_failed')
             failed_goals_task = write_json_data(failed_goals_list, path['goals_failed'])
             crumb_task = write_crumb(goals_sum, f"{attributes['char_name']} failed to reach a goal: ")
             reset_task = reset(loop)
@@ -206,14 +219,7 @@ async def main():
     answer_attempts = 0
     first_run = await reset(loop)
     answered = False
-
-    # Initialize a couple of variables for safety
     question = ''
-
-    # Using lots of different queues to avoid accidental ingestion
-    file_queue, text_queue, squire_queue, response_queue, aggregate_queue, send_queue, receive_queue \
-        = (asyncio.Queue(), asyncio.Queue(), asyncio.Queue(), asyncio.Queue(),
-           asyncio.Queue(), asyncio.Queue(), asyncio.Queue(),)
 
     # Load files that only need to be loaded once
     statement, body, chara_text = await asyncio.gather(
@@ -229,13 +235,15 @@ async def main():
     asyncio.run_coroutine_threadsafe(monitor_directory(params['squire_out_dir'], file_queue, text_queue, loop), loop)
 
     # Start server
-    asyncio.run_coroutine_threadsafe(start_server(send_queue, receive_queue, loop, port=params['port']), loop)
+    asyncio.run_coroutine_threadsafe(start_server(send_data, receive_request,
+                                                  host=params['host'], port=params['port']), loop)
 
     # Start signal manager
-    asyncio.run_coroutine_threadsafe(signal_manager(receive_queue), loop)
+    asyncio.run_coroutine_threadsafe(signal_manager(receive_queue, send_queue), loop)
 
     while True:
         # Load all data needed to generate a prompt. Should be rate-limited by text_queue.get()
+        await signal('pause')
         text, thoughts, answers, convo = await asyncio.gather(
             text_queue.get(),
             load_json_data(path['thoughts']),
@@ -243,6 +251,7 @@ async def main():
             load_json_data(path['char_log'])
         )
 
+        # await signal('pause')
         if answered or first_run:
             answer_attempts = 0
 
@@ -250,6 +259,7 @@ async def main():
             exchange_task = loop.create_task(exchange(aggregate_queue, response_queue, squire_queue))
 
             # Generate the prompt
+            # await signal('pause')
             aggregate_task = loop.create_task(
                 aggregate_text(statement, text, body, chara_text, thoughts, answers, convo))
 
@@ -258,7 +268,8 @@ async def main():
             # Await tasks for getting the prompt, processing it, then sending the reply to Squire
             aggregate_put_task = aggregate_queue.put(prompt)
             await aggregate_put_task
-            await signal('')
+
+            await signal('pause')
             await exchange_task
 
         else:
@@ -268,6 +279,7 @@ async def main():
             await squire_put_task
 
         # Task to launch Squire in response to a question by the LLM
+        # await signal('pause')
         squire_task = loop.create_task(send_to_squire(squire_queue))
         await squire_task
 
@@ -275,14 +287,19 @@ async def main():
             first_run = False
 
         # Turn the answers into a coherent output, if there are enough to work with
+        # await signal('pause')
         if len(answers['answers']) > 0:
             # We summarize the answers in hope of faster overall execution, but an answer list can also be supplied
+            await send_update('start', 'answers_synth')
             answers_synth = await chunk_process(answers['answers'], llm)
+            await send_update('stop', 'answers_synth')
 
             # Check if question has been answered
+            # await signal('pause')
             [question, answered] = await check_answered(answers_synth, llm)
 
             # Launch appraisal loop
+            # await signal('pause')
             appraise_task = loop.create_task(appraise(answered, answer_attempts, answers_synth, thoughts, llm))
             first_run = await appraise_task
             if first_run:

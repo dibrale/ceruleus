@@ -23,6 +23,8 @@ The ultimate goal of Ceruleus is to organize information transfer between module
 
 ## Parameters and Usage
 
+*Note that a GUI for this software is currently in development, so some of the usage has changed. Documentation will be updated once GUI-related changes are more stable. Thank you for your patience, and please don't hesitate to ask me any questions if you do wish to try out this project in the meantime!*
+
 Edit the params.json file before running Ceruleus to reflect your setup, with particular attention to `CUDA_VISIBLE_DEVICES`, `char_card_path`, `char_log_path` and `squire_model_path`. The full list of parameters is described below.
 
 | Parameter | Type | Default | Description |
