@@ -152,10 +152,10 @@ async def log_reload(values):
     log.update({'lines': lines_out})
 
 
-async def log_updater(loop: AbstractEventLoop):
+async def log_updater():
     while True:
         values = params['values']
-        print(values['LIVE_UPDATE'])
+        # print(values['LIVE_UPDATE'])
         if values['LIVE_UPDATE']:
             log['lines'] = await read_log_file(values['LOG_PATH'])
             await asyncio.sleep(0)
@@ -560,7 +560,7 @@ async def async_main():
 
     # asyncio.run_coroutine_threadsafe(log_updater(loop), loop)
     # log_task = loop.create_task(log_updater(loop))
-    log_routine = await asyncio.to_thread(log_updater, loop)
+    log_routine = await asyncio.to_thread(log_updater)
 
     # await processor_task
 
