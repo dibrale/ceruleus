@@ -243,7 +243,7 @@ async def main():
 
     while True:
         # Load all data needed to generate a prompt. Should be rate-limited by text_queue.get()
-        await signal('pause')
+        # await signal('pause')
         text, thoughts, answers, convo = await asyncio.gather(
             text_queue.get(),
             load_json_data(path['thoughts']),
@@ -251,7 +251,7 @@ async def main():
             load_json_data(path['char_log'])
         )
 
-        # await signal('pause')
+        await signal('pause')
         if answered or first_run:
             answer_attempts = 0
 
@@ -269,7 +269,7 @@ async def main():
             aggregate_put_task = aggregate_queue.put(prompt)
             await aggregate_put_task
 
-            await signal('pause')
+            # await signal('pause')
             await exchange_task
 
         else:

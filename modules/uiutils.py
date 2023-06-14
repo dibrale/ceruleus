@@ -30,7 +30,6 @@ async def flash(key, ui: Sg.Window, color_low='Black', color_high='Green', inter
     ui.refresh()
     await asyncio.sleep(interval_low)
     low_bg()
-    ui.refresh()
     await asyncio.sleep(interval_high)
 
 
@@ -99,7 +98,6 @@ def update_semaphore(semaphore: dict, ui: Sg.Window, color_low='Black', color_go
                 ui[name].Update(background_color=color_go)
             else:
                 ui[name].Update(background_color=color_stop)
-    ui.refresh()
 
 
 # Returns num_lines log file lines in a list from least to most recent
