@@ -147,7 +147,7 @@ async def start_server(
     async def server_handler(websocket):
         await handler(websocket, send_queue, receive_queue, tx_fcn, rx_fcn)
 
-    await websockets.server.serve(server_handler, host, port, open_timeout=None, ping_timeout=None, ping_interval=None)
+    await websockets.server.serve(server_handler, host, port)
     await asyncio.sleep(0)
 
     # stop = asyncio.Future()

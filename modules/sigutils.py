@@ -86,5 +86,6 @@ async def signal(key, go_value=True, go_on_none=False, check_frequency=0.25, che
             check_number = 0
         print_v(f"Waiting at semaphore for {key}:{go_value}", print_wait)
         print_wait = False
+        await asyncio.sleep(0)
     await send_queue.put({'going': key})
     print_v(f"Semaphore cleared with {key}:{sig}", params['verbose'])

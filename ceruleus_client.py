@@ -33,7 +33,7 @@ params: dict[str, typing.Any] = {
     'third_last_table_event': '',
     'update_table': False,
     'update_table_init': False,
-    'ticks_per_update': int(2),
+    'ticks_per_update': int(10),
     'update_tick': int(0),
     'filter_text': '',
     'ignore_list': [],
@@ -164,6 +164,17 @@ def log_reload(values):
     window['LOG'].Update('\n'.join(lines_out))
 
 
+async def log_updater(loop: AbstractEventLoop):
+    while True:
+        if params['values']:
+            values = params['values']
+            if values['LIVE_UPDATE']:
+                log['lines'] = await read_log_file(values['LOG_PATH'])
+                log_reload(values)
+
+        await asyncio.sleep(0.1)
+
+
 async def client_handler_wrapper(
         send_queue: asyncio.Queue,
         receive_queue: asyncio.Queue,
@@ -185,12 +196,12 @@ async def client_handler_wrapper(
             handler_routine = await asyncio.to_thread(handler, params['socket'], send_queue, receive_queue, tx_fcn, rx_fcn, outcome_queue)
             # await handler(params['socket'], send_queue, receive_queue, tx_fcn, rx_fcn, outcome_queue)
             await handler_routine
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0)
             # await queued_handler()
             # await handler_task
             # print('Handler done')
 
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0)
 
 
 async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asyncio.Queue):
@@ -198,12 +209,12 @@ async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asynci
         await asyncio.sleep(0)
         values = params['values']
         if params['make_connect']:
-            print('Connecting')
+            # print('Connecting')
             params.update({'host': str(values['HOST']), 'port': str(values['PORT'])})
             params.update({'uri': f"ws://{params['host']}:{params['port']}"})
-            params.update({'socket': websockets.client.connect(params['uri'], open_timeout=None,
-                                                               ping_timeout=None, ping_interval=None)})
+            params.update({'socket': websockets.client.connect(params['uri'])})
 
+            await asyncio.sleep(0)
             # asyncio.run_coroutine_threadsafe(client_handler_wrapper(
             #     request_queue, data_queue, outcome_queue, send_request, receive_data, loop), loop)
             window['STATUS'].Update(f"Connecting to {params['uri']}...")
@@ -217,10 +228,18 @@ async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asynci
             params.update({'stop_exchange': False})
             await asyncio.sleep(0)
             window['STATUS'].Update(f"Sending request to {params['host']}:{params['port']}...")
-            # window.refresh()
+            # await refresh(ui)
             await asyncio.sleep(0)
 
-            reply = await hi_queue.get()
+            try:
+                reply = await asyncio.wait_for(hi_queue.get(), 2)
+            except asyncio.exceptions.TimeoutError:
+                window['CONNECTION_LIGHT'].Update(background_color='Black')
+                params.update({'stop_exchange': True})
+                window['CONNECT'].Update(disabled=False)
+                window['STATUS'].Update('Connection attempt failed')
+                params['make_connect'] = False
+                continue
 
             if 'script_name' in reply.keys():
                 window['STATUS'].Update(f"Connected to {reply['script_name']}")
@@ -228,6 +247,7 @@ async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asynci
 
                 window['CONNECTION_LIGHT'].Update(background_color='Green')
 
+                await refresh(ui)
                 await out_queue.put({'query': 'semaphore'})
             params['make_connect'] = False
 
@@ -235,7 +255,7 @@ async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asynci
 async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue, handshake_queue: asyncio.Queue,
                         outcome_queue: asyncio.Queue, loop: AbstractEventLoop):
     while True:
-        event, values = window.read(timeout=50)
+        event, values = window.read(timeout=25)
         check_key = ''
         params['values'] = values
 
@@ -455,8 +475,9 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
             window['LOG_CHECK'].Update(visible=True)
             log_reload(values)
             window['LIVE_UPDATE'].Update(value=True, disabled=False)
-            window.refresh()
+            await refresh(window)
 
+        '''
         if event == '__TIMEOUT__' and values['LIVE_UPDATE']:
             if params['update_tick'] > 0:
                 params['update_tick'] -= 1
@@ -465,6 +486,7 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                 if window['LOG_CHECK'].visible is True:
                     log['lines'] = await read_log_file(values['LOG_PATH'])
                     log_reload(values)
+        '''
 
         await asyncio.sleep(0)
 
@@ -502,7 +524,6 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
         await asyncio.sleep(0)
 
 
-
 async def async_main():
     # window.refresh()
     loop = asyncio.get_event_loop()
@@ -521,7 +542,8 @@ async def async_main():
                       request_queue, data_queue, outcome_queue, send_request, receive_data, loop), loop)
 
     # close_task = loop.create_task(close_connection(outcome_queue, request_queue, data_queue))
-    asyncio.run_coroutine_threadsafe(close_connection(outcome_queue, request_queue, data_queue), loop)
+    # asyncio.run_coroutine_threadsafe(close_connection(outcome_queue, request_queue, data_queue), loop)
+    close_routine = await asyncio.to_thread(close_connection, outcome_queue, request_queue, data_queue)
 
     # semaphore_task = loop.create_task(semaphore_manager(semaphore, window))
     asyncio.run_coroutine_threadsafe(semaphore_manager(semaphore, window), loop)
@@ -532,8 +554,12 @@ async def async_main():
     # asyncio.run_coroutine_threadsafe(window_routine, loop)
     # await asyncio.gather(ping_task, close_task, semaphore_task)
 
-    # asyncio.run_coroutine_threadsafe(make_connect(window, params['values'], request_queue, handshake_queue), loop)
-    connect_task = loop.create_task(make_connect(window, request_queue, handshake_queue))
+    # asyncio.run_coroutine_threadsafe(make_connect(window, request_queue, handshake_queue), loop)
+    connect_routine = await asyncio.to_thread(make_connect, window, request_queue, handshake_queue)
+    # connect_task = loop.create_task(make_connect(window, request_queue, handshake_queue))
+
+    # asyncio.run_coroutine_threadsafe(log_updater(loop), loop)
+    # log_task = loop.create_task(log_updater(loop))
 
     # await processor_task
 
@@ -542,7 +568,7 @@ async def async_main():
 
     # window.close()
 
-    await asyncio.gather(window_task, connect_task)
+    await asyncio.gather(window_task, close_routine, connect_routine)
     # await window_task
 
 # The GUI elements are all declared in synchronous main(), since they only need to be declared once
