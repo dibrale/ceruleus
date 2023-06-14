@@ -14,6 +14,12 @@ strobe_light = {
 }
 
 
+async def refresh(ui: Sg.Window):
+    await asyncio.sleep(0)
+    ui.refresh()
+    await asyncio.sleep(0)
+
+
 def exists(var: Any) -> bool:
     try:
         var

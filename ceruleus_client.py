@@ -52,18 +52,14 @@ async def semaphore_manager(signals: dict, ui: Sg.Window):
                 ui[name].Update(value=0, disabled=False)
             else:
                 ui[name].Update(value=1, disabled=False)
-        await asyncio.sleep(0)
-        ui.refresh()
-        await asyncio.sleep(0)
+        await refresh(ui)
 
 
 async def switch_semaphore(ui: Sg.Window, key: str, values: dict, send_queue: asyncio.Queue):
     new_state = not bool(values[key])
     ui[key].Update(disabled=True)
     semaphore.update({key[:-7].lower(): new_state})
-    await asyncio.sleep(0)
-    ui.refresh()
-    await asyncio.sleep(0)
+    await refresh(ui)
     await send_queue.put({key[:-7].lower(): new_state})
 
 
@@ -87,7 +83,6 @@ async def message_processor(receive_queue: asyncio.Queue, pong_queue: asyncio.Qu
                 try:
                     asyncio.run_coroutine_threadsafe(flash(
                         f"{item[key].upper()}_WAITING_LIGHT", window, color_high='yellow'), asyncio.get_running_loop())
-                    window.refresh()
                 except Exception as e:
                     print(e)
             elif key == 'going':
@@ -138,10 +133,6 @@ async def close_connection(text_queue: asyncio.Queue, send_queue: asyncio.Queue,
         window['CONNECTION_LIGHT'].Update(background_color='Black')
         window['STATUS'].Update(text)
         window['CONNECT'].Update(disabled=False)
-        await asyncio.sleep(0)
-        # params['socket'].close()
-        window.refresh()
-        await asyncio.sleep(0)
 
 
 def table_reload(tracker: dict, table_key: str):
