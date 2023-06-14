@@ -67,9 +67,9 @@ async def message_processor(receive_queue: asyncio.Queue, pong_queue: asyncio.Qu
     while True:
         id_out = {}
         message = await receive_queue.get()
-        print(f"Got {str(message)} from receive queue")
+        # print(f"Got {str(message)} from receive queue")
         for key in message.keys():
-            print(f"Processing {key}")
+            # print(f"Processing {key}")
             item = {key: message[key]}
             if key == 'pong':
                 await pong_queue.put(item)
@@ -104,7 +104,6 @@ async def close_connection(text_queue: asyncio.Queue, send_queue: asyncio.Queue,
         await send_queue.put({'close': None})
         # await asyncio.sleep(0.5)
         await send_queue.put({'dummy': None})
-        params.update({'stop_ping': True})
 
         await asyncio.sleep(0)
         window['STATUS'].Update('Closing connection')
@@ -119,7 +118,7 @@ async def close_connection(text_queue: asyncio.Queue, send_queue: asyncio.Queue,
         for task in asyncio.all_tasks(asyncio.get_running_loop()):
             if task.get_name() in tasks_to_close:
                 task.cancel()
-                await asyncio.sleep(0)
+            await asyncio.sleep(0)
 
         while not send_queue.empty() or not receive_queue.empty():
             await asyncio.sleep(0)
@@ -133,6 +132,7 @@ async def close_connection(text_queue: asyncio.Queue, send_queue: asyncio.Queue,
         window['CONNECTION_LIGHT'].Update(background_color='Black')
         window['STATUS'].Update(text)
         window['CONNECT'].Update(disabled=False)
+        await asyncio.sleep(0)
 
 
 def table_reload(tracker: dict, table_key: str):
@@ -163,66 +163,6 @@ def log_reload(values):
     window['LOG'].Update('\n'.join(lines_out))
 
 
-async def ping(
-        send_queue: asyncio.Queue,
-        pong_queue: asyncio.Queue,
-        receive_queue: asyncio.Queue,
-        outcome_queue: asyncio.Queue,
-        timeout=10,
-        period=20,
-        ping_data=None,
-        pong_data=None,
-):
-    if pong_data is None:
-        pong_data = {'pong': 0}
-    if ping_data is None:
-        ping_data = {'ping': 0}
-    put_outcome = True
-
-    while True:
-        await asyncio.sleep(0)
-        off = params['stop_ping']
-        if off:
-
-            if not put_outcome:
-                await outcome_queue.put('Connection closed')
-                put_outcome = True
-
-            await asyncio.sleep(0.5)
-        else:
-            put_outcome = True
-            recirculate = {}
-            try:
-                await send_queue.put(ping_data)
-                try:
-                    done = await asyncio.wait_for(pong_queue.get(), timeout=timeout)
-                except asyncio.exceptions.TimeoutError:
-                    done = None
-                if done:
-                    got_pong = False
-                    for key in done.keys():
-                        if key in pong_data:
-                            got_pong = True
-                        else:
-                            recirculate.update({key, done[key]})
-
-                else:
-                    text = f"Timed out after {str(timeout)} seconds"
-                    raise TimeoutError(text)
-
-                if got_pong:
-                    await asyncio.sleep(period)
-
-            except TimeoutError or ConnectionError as e:
-                await outcome_queue.put(str(e))
-                put_outcome = False
-
-            finally:
-                if recirculate:
-                    await receive_queue.put(recirculate)
-                await asyncio.sleep(0)
-
-
 async def client_handler_wrapper(
         send_queue: asyncio.Queue,
         receive_queue: asyncio.Queue,
@@ -246,10 +186,10 @@ async def client_handler_wrapper(
             # print('Handler done')
             await asyncio.sleep(0)
         else:
-            await asyncio.sleep(1)
+            await asyncio.sleep(0)
 
 
-async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue, pong_queue: asyncio.Queue,
+async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue, handshake_queue: asyncio.Queue,
                         outcome_queue: asyncio.Queue, loop: AbstractEventLoop):
     while True:
         event, values = window.read(timeout=50)
@@ -294,7 +234,7 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
             # asyncio.run_coroutine_threadsafe(strobe('CONNECTION_LIGHT', window, loop), loop)
             window['CONNECTION_LIGHT'].Update(background_color='Yellow')
 
-            for queue in [request_queue, data_queue, pong_queue, outcome_queue, pong_queue]:
+            for queue in [request_queue, data_queue, handshake_queue, outcome_queue]:
                 empty_queue(queue)
 
             await request_queue.put({'query': 'id'})
@@ -307,11 +247,11 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
 
             # pong_queue_task = loop.create_task(pong_queue.get())
             # print("Awaiting pong queue")
-            await asyncio.sleep(0)
+            # await asyncio.sleep(0)
             # reply = await pong_queue_task
             # print(f"Got pong queue item: {reply}")
 
-            reply = await pong_queue.get()
+            reply = await handshake_queue.get()
             for key in reply.keys():
                 if key == 'script_name':
                     window['STATUS'].Update(f"Connected to {reply['script_name']}")
@@ -322,7 +262,6 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                     window['CONNECTION_LIGHT'].Update(background_color='Green')
 
                     await request_queue.put({'query': 'semaphore'})
-                    # params.update({'stop_ping': False})
 
             '''
             while awaiting_reply:
@@ -591,9 +530,6 @@ async def async_main():
 
     processor_task = loop.create_task(message_processor(data_queue, pong_queue, updates_list))
     # asyncio.run_coroutine_threadsafe(message_processor(data_queue, pong_queue, updates_list), loop)
-
-    # ping_task = loop.create_task(ping(request_queue, pong_queue, data_queue, outcome_queue))
-    asyncio.run_coroutine_threadsafe(ping(request_queue, pong_queue, data_queue, outcome_queue), loop)
 
     # handler_task = loop.create_task(client_handler_wrapper(
     #                   request_queue, data_queue, outcome_queue, send_request, receive_data, loop))
