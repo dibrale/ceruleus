@@ -9,10 +9,6 @@ from asyncio import AbstractEventLoop
 
 import aiofiles
 
-strobe_light = {
-    'CONNECTION_LIGHT': False
-}
-
 
 async def refresh(ui: Sg.Window):
     await asyncio.sleep(0)
@@ -37,20 +33,6 @@ async def flash(key, ui: Sg.Window, color_low='Black', color_high='Green', inter
     await asyncio.sleep(interval_low)
     low_bg()
     await asyncio.sleep(interval_high)
-
-
-async def strobe_visual(key, ui: Sg.Window, loop: AbstractEventLoop,
-                        color_low='Black', color_high='Green',
-                        interval_low=0.5, interval_high=0.5):
-    while strobe_light[key]:
-        flash_routine = flash(key, ui, color_low, color_high, interval_low, interval_high)
-        asyncio.run_coroutine_threadsafe(flash_routine, loop)
-        await flash_routine
-
-
-async def strobe(key, ui: Sg.Window, loop: AbstractEventLoop):
-    strobe_light.update({key: not strobe_light[key]})
-    await strobe_visual(key, ui, loop)
 
 
 def input_field(label='', default='', key='', length=20) -> list[Sg.Element]:

@@ -78,12 +78,12 @@ async def send_request(websocket: WebSocketClientProtocol, message: dict | async
 async def receive_data(websocket: WebSocketClientProtocol, in_queue: asyncio.Queue):
     try:
         async with websocket as socket:
-            # async for message in socket:
-            message = await socket.recv()
-            # print('Incoming message received. Decoding.')
-            decoded_message = json.loads(message)
-            print(f"Received {decoded_message} from {websocket}")
-            await in_queue.put(decoded_message)
+            async for message in socket:
+                # message = await socket.recv()
+                # print('Incoming message received. Decoding.')
+                decoded_message = json.loads(message)
+                print(f"Received {decoded_message} from websocket")
+                await in_queue.put(decoded_message)
     except Exception as e:
         print(e)
     await asyncio.sleep(0)
