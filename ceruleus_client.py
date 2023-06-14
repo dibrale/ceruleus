@@ -38,7 +38,8 @@ params: dict[str, typing.Any] = {
     'filter_text': '',
     'ignore_list': [],
     'values': {},
-    'make_connect': False
+    'make_connect': False,
+    'do_log_update': False
 }
 
 
@@ -102,37 +103,21 @@ async def close_connection(text_queue: asyncio.Queue, send_queue: asyncio.Queue,
     while True:
         await asyncio.sleep(0)
         text = await text_queue.get()
-        # print(f"Got '{text}' from outcome queue")
         await send_queue.put({'close': None})
         # await asyncio.sleep(0.5)
-        await send_queue.put({'dummy': None})
-
-        await asyncio.sleep(0)
-        window['STATUS'].Update('Closing connection')
-        window['CONNECT'].Update(disabled=True)
-        window['DISCONNECT'].Update(disabled=True)
-        await asyncio.sleep(0)
-        # window.refresh()
-
-        # Cancel pending rx/tx if closing
-
-        tasks_to_close = ['handshake_reply_get', 'strobe']
-        for task in asyncio.all_tasks(asyncio.get_running_loop()):
-            if task.get_name() in tasks_to_close:
-                task.cancel()
-            await asyncio.sleep(0)
+        # await send_queue.put({'dummy': None})
 
         while not send_queue.empty() or not receive_queue.empty():
             await asyncio.sleep(0)
-        params.update({'stop_exchange': True})
+        params['stop_exchange'] = True
 
         # Turn off the semaphore
-        for key in semaphore.keys():
-            semaphore[key] = None
+        semaphore.update({key: None for key in semaphore})
 
         window['CONNECTION_LIGHT'].Update(background_color='Black')
         window['STATUS'].Update(text)
         window['CONNECT'].Update(disabled=False)
+        window['DISCONNECT'].Update(disabled=True)
         await asyncio.sleep(0)
 
 
@@ -140,12 +125,13 @@ def table_reload(tracker: dict, table_key: str):
     window[table_key].Update([[k, v] for k, v in tracker.items()])
 
 
-def log_reload(values):
+async def log_reload(values):
     lines_out = []
     # print(f"Ignore list: {params['ignore_list']}. Nil: {check_nil(params['ignore_list'])}")
     # print(f"Include item: {params['filter_text']}. Nil: {check_nil(params['filter_text'])}")
     for line in log['lines']:
         ignore_line = False
+        await asyncio.sleep(0)
         if not check_nil(params['ignore_list']):
             for phrase in params['ignore_list']:
                 if phrase in line:
@@ -161,18 +147,22 @@ def log_reload(values):
             else:
                 continue
         lines_out.append(line)
-    window['LOG'].Update('\n'.join(lines_out))
+    params['do_log_update'] = True
+    await asyncio.sleep(0)
+    log.update({'lines': lines_out})
 
 
 async def log_updater(loop: AbstractEventLoop):
     while True:
-        if params['values']:
-            values = params['values']
-            if values['LIVE_UPDATE']:
-                log['lines'] = await read_log_file(values['LOG_PATH'])
-                log_reload(values)
-
-        await asyncio.sleep(0.1)
+        values = params['values']
+        print(values['LIVE_UPDATE'])
+        if values['LIVE_UPDATE']:
+            log['lines'] = await read_log_file(values['LOG_PATH'])
+            await asyncio.sleep(0)
+            await log_reload(values)
+            await asyncio.sleep(0)
+        else:
+            await asyncio.sleep(1)
 
 
 async def client_handler_wrapper(
@@ -232,7 +222,7 @@ async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asynci
             await asyncio.sleep(0)
 
             try:
-                reply = await asyncio.wait_for(hi_queue.get(), 2)
+                reply = await asyncio.wait_for(hi_queue.get(), 0.5)
             except asyncio.exceptions.TimeoutError:
                 window['CONNECTION_LIGHT'].Update(background_color='Black')
                 params.update({'stop_exchange': True})
@@ -248,7 +238,9 @@ async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asynci
                 window['CONNECTION_LIGHT'].Update(background_color='Green')
 
                 await refresh(ui)
+                await asyncio.sleep(0.1)
                 await out_queue.put({'query': 'semaphore'})
+                await asyncio.sleep(0)
             params['make_connect'] = False
 
 
@@ -258,6 +250,10 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
         event, values = window.read(timeout=25)
         check_key = ''
         params['values'] = values
+
+        if params['do_log_update']:
+            window['LOG'].Update('\n'.join(log['lines']))
+            params['do_log_update'] = False
 
         if event == '__TIMEOUT__':
             await asyncio.sleep(0)
@@ -473,7 +469,7 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
         if event == 'LOG_LOAD':
             log['lines'] = await read_log_file(values['LOG_PATH'])
             window['LOG_CHECK'].Update(visible=True)
-            log_reload(values)
+            await log_reload(values)
             window['LIVE_UPDATE'].Update(value=True, disabled=False)
             await refresh(window)
 
@@ -485,7 +481,7 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                 params['update_tick'] = params['ticks_per_update']
                 if window['LOG_CHECK'].visible is True:
                     log['lines'] = await read_log_file(values['LOG_PATH'])
-                    log_reload(values)
+                    await log_reload(values)
         '''
 
         await asyncio.sleep(0)
@@ -502,7 +498,7 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
             params['filter_text'] = values['FILTER']
             params['ignore_list'] = values['IGNORE_FILTER'].split(',')
             window['APPLY_FILTER'].Update(disabled=True)
-            log_reload(values)
+            await log_reload(values)
 
         if event == 'CLEAR_FILTER':
             params['filter_text'] = ''
@@ -511,10 +507,10 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
             window['IGNORE_FILTER'].Update('')
             window['APPLY_FILTER'].Update(disabled=True)
             window['CLEAR_FILTER'].Update(disabled=True)
-            log_reload(values)
+            await log_reload(values)
 
         if event == 'DEL_FILTER':
-            log_reload(values)
+            await log_reload(values)
 
         if event == 'TOUCH':
             touch = await asyncio.create_subprocess_shell(f"touch {values['SQUIRE_OUT_PATH']}", stdin=PIPE, stdout=PIPE,
@@ -534,19 +530,23 @@ async def async_main():
     updates_list = []
 
     # processor_task = loop.create_task(message_processor(data_queue, pong_queue, updates_list))
-    asyncio.run_coroutine_threadsafe(message_processor(data_queue, handshake_queue, updates_list), loop)
+    # asyncio.run_coroutine_threadsafe(message_processor(data_queue, handshake_queue, updates_list), loop)
+    processor_routine = await asyncio.to_thread(message_processor, data_queue, handshake_queue, updates_list)
 
     # handler_task = loop.create_task(client_handler_wrapper(
     #                   request_queue, data_queue, outcome_queue, send_request, receive_data, loop))
-    asyncio.run_coroutine_threadsafe(client_handler_wrapper(
-                      request_queue, data_queue, outcome_queue, send_request, receive_data, loop), loop)
+    # asyncio.run_coroutine_threadsafe(client_handler_wrapper(
+    #                   request_queue, data_queue, outcome_queue, send_request, receive_data, loop), loop)
+    handler_routine = await asyncio.to_thread(client_handler_wrapper, request_queue, data_queue, outcome_queue,
+                                              send_request, receive_data, loop)
 
     # close_task = loop.create_task(close_connection(outcome_queue, request_queue, data_queue))
     # asyncio.run_coroutine_threadsafe(close_connection(outcome_queue, request_queue, data_queue), loop)
     close_routine = await asyncio.to_thread(close_connection, outcome_queue, request_queue, data_queue)
 
     # semaphore_task = loop.create_task(semaphore_manager(semaphore, window))
-    asyncio.run_coroutine_threadsafe(semaphore_manager(semaphore, window), loop)
+    # asyncio.run_coroutine_threadsafe(semaphore_manager(semaphore, window), loop)
+    semaphore_routine = await asyncio.to_thread(semaphore_manager, semaphore, window)
 
     window_task = loop.create_task(window_update(request_queue, data_queue, handshake_queue, outcome_queue, loop))
     # asyncio.run_coroutine_threadsafe(window_update(request_queue, data_queue, pong_queue, outcome_queue, loop), loop)
@@ -560,6 +560,7 @@ async def async_main():
 
     # asyncio.run_coroutine_threadsafe(log_updater(loop), loop)
     # log_task = loop.create_task(log_updater(loop))
+    log_routine = await asyncio.to_thread(log_updater, loop)
 
     # await processor_task
 
@@ -568,7 +569,7 @@ async def async_main():
 
     # window.close()
 
-    await asyncio.gather(window_task, close_routine, connect_routine)
+    await asyncio.gather(window_task, close_routine, connect_routine, handler_routine, semaphore_routine, processor_routine, log_routine)
     # await window_task
 
 # The GUI elements are all declared in synchronous main(), since they only need to be declared once

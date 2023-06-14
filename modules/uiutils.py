@@ -95,6 +95,7 @@ async def read_log_file(file_path: str, num_lines=int(9001)) -> list[str]:
         async with aiofiles.open(file_path, mode='r') as file:
             async for line in file:
                 log_lines += [str(line).strip()]
+                await asyncio.sleep(0)
     except Exception as e:
         error_type = str(type(e))
         error_str = error_type.lstrip("<class '").rstrip("'>")
