@@ -243,7 +243,7 @@ async def main():
 
     while True:
         # Load all data needed to generate a prompt. Should be rate-limited by text_queue.get()
-        # await signal('pause')
+        await signal('pause')
         text, thoughts, answers, convo = await asyncio.gather(
             text_queue.get(),
             load_json_data(path['thoughts']),
@@ -259,7 +259,7 @@ async def main():
             exchange_task = loop.create_task(exchange(aggregate_queue, response_queue, squire_queue))
 
             # Generate the prompt
-            # await signal('pause')
+            await signal('pause')
             aggregate_task = loop.create_task(
                 aggregate_text(statement, text, body, chara_text, thoughts, answers, convo))
 
@@ -269,7 +269,7 @@ async def main():
             aggregate_put_task = aggregate_queue.put(prompt)
             await aggregate_put_task
 
-            # await signal('pause')
+            await signal('pause')
             await exchange_task
 
         else:
@@ -279,7 +279,7 @@ async def main():
             await squire_put_task
 
         # Task to launch Squire in response to a question by the LLM
-        # await signal('pause')
+        await signal('pause')
         squire_task = loop.create_task(send_to_squire(squire_queue))
         await squire_task
 
@@ -287,7 +287,7 @@ async def main():
             first_run = False
 
         # Turn the answers into a coherent output, if there are enough to work with
-        # await signal('pause')
+        await signal('pause')
         if len(answers['answers']) > 0:
             # We summarize the answers in hope of faster overall execution, but an answer list can also be supplied
             await send_update('start', 'answers_synth')
@@ -295,11 +295,11 @@ async def main():
             await send_update('stop', 'answers_synth')
 
             # Check if question has been answered
-            # await signal('pause')
+            await signal('pause')
             [question, answered] = await check_answered(answers_synth, llm)
 
             # Launch appraisal loop
-            # await signal('pause')
+            await signal('pause')
             appraise_task = loop.create_task(appraise(answered, answer_attempts, answers_synth, thoughts, llm))
             first_run = await appraise_task
             if first_run:

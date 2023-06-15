@@ -194,8 +194,10 @@ async def client_handler_wrapper(
         await asyncio.sleep(0)
 
 
-async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asyncio.Queue):
+async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asyncio.Queue, attempts=3):
+    attempt = 0
     while True:
+        attempt += 1
         await asyncio.sleep(0)
         values = params['values']
         if params['make_connect']:
@@ -227,8 +229,10 @@ async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asynci
                 window['CONNECTION_LIGHT'].Update(background_color='Black')
                 params.update({'stop_exchange': True})
                 window['CONNECT'].Update(disabled=False)
-                window['STATUS'].Update('Connection attempt failed')
-                params['make_connect'] = False
+                if attempt == attempts:
+                    attempt = 0
+                    window['STATUS'].Update('Connection attempt failed')
+                    params['make_connect'] = False
                 continue
 
             if 'script_name' in reply.keys():
@@ -247,7 +251,7 @@ async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asynci
 async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue, handshake_queue: asyncio.Queue,
                         outcome_queue: asyncio.Queue, loop: AbstractEventLoop):
     while True:
-        event, values = window.read(timeout=25)
+        event, values = window.read(timeout=50)
         check_key = ''
         params['values'] = values
 
@@ -597,7 +601,7 @@ if __name__ == "__main__":
                          ]),
                          Sg.Frame('Squire', [
                              [Sg.Text('Path to Squire output')],
-                             [Sg.Input(size=(25, 1), default_text='out.txt', key='SQUIRE_OUT_PATH',
+                             [Sg.Input(size=(25, 1), default_text='squire_output/out.txt', key='SQUIRE_OUT_PATH',
                                        enable_events=True)],
                              [Sg.FileBrowse(key='SQUIRE_OUT_BROWSE',
                                             file_types=[("Text Files", '*.txt'), ("All Files", '.*')],

@@ -70,7 +70,7 @@ async def set_signal(item: dict, send_queue: asyncio.Queue):
 
 
 # Wait at the semaphore
-async def signal(key, go_value=True, go_on_none=False, check_frequency=0.25, checks_per_reminder=16):
+async def signal(key, go_value=True, go_on_none=False, check_frequency=0.25, checks_per_reminder=8):
     print_wait = True
     check_number = 0
     while True:
@@ -82,7 +82,7 @@ async def signal(key, go_value=True, go_on_none=False, check_frequency=0.25, che
         await asyncio.sleep(check_frequency)
         check_number += 1
         if check_number == checks_per_reminder:
-            # await send_queue.put({'waiting': key})
+            await send_queue.put({'waiting': key})
             check_number = 0
         print_v(f"Waiting at semaphore for {key}:{go_value}", print_wait)
         print_wait = False
