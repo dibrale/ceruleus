@@ -25,12 +25,14 @@ async def fake_signal_manager(receive_queue: asyncio.Queue, send_queue: asyncio.
 # The actual signal manager. Updates the internal semaphore
 async def signal_manager(receive_queue: asyncio.Queue, send_queue: asyncio.Queue):
     while True:
+        out = {}
         item = await receive_queue.get()
         print_v(f"Got request from queue: {str(item)}")
-        out = {}
         for key in item.keys():
-            print_v(f"Checking key '{key}'")
-            if key == 'ping':
+            # print_v(f"Checking key '{key}'")
+            if key == 'echo':
+                out.update({key: item[key]})
+            elif key == 'ping':
                 out.update({'pong': 0})
             elif key == 'query':
                 if item[key] == 'id':
@@ -42,15 +44,14 @@ async def signal_manager(receive_queue: asyncio.Queue, send_queue: asyncio.Queue
                     out.update({item[key]: semaphore[item[key]]})
             elif key == 'close':
                 connection['live'] = False
-            elif key == 'echo':
-                out.update({key: item[key]})
             elif key in semaphore.keys():
                 semaphore.update(item)
                 out.update({key: semaphore[key]})
             else:
                 print_v(f"No key match for '{key}'")
+            await asyncio.sleep(0)
         if out:
-            await send_queue.put(out)
+            send_queue.put_nowait(out)
             print_v(f"Queued reply to send: {str(out)}")
         await asyncio.sleep(0)
 
@@ -66,7 +67,7 @@ async def get_signal(key):
 # Set a semaphore signal, sending an update to the client
 async def set_signal(item: dict, send_queue: asyncio.Queue):
     semaphore.update(item)
-    await send_queue.put(semaphore)
+    send_queue.put_nowait(semaphore)
 
 
 # Wait at the semaphore
@@ -82,10 +83,10 @@ async def signal(key, go_value=True, go_on_none=False, check_frequency=0.25, che
         await asyncio.sleep(check_frequency)
         check_number += 1
         if check_number == checks_per_reminder:
-            await send_queue.put({'waiting': key})
+            send_queue.put_nowait({'waiting': key})
             check_number = 0
         print_v(f"Waiting at semaphore for {key}:{go_value}", print_wait)
         print_wait = False
         await asyncio.sleep(0)
-    await send_queue.put({'going': key})
+    send_queue.put_nowait({'going': key})
     print_v(f"Semaphore cleared with {key}:{sig}", params['verbose'])

@@ -14,50 +14,52 @@ import websockets.server
 import json
 
 
-async def race(fcn1: Callable, args1: list, fcn2: Callable, args2: list, timeout=None):
+async def handler(fcn1: Callable, args1: list, fcn2: Callable, args2: list, timeout=None):
     done, pending = await asyncio.wait(
         [fcn1(*args1), fcn2(*args2)], return_when=asyncio.FIRST_COMPLETED, timeout=timeout)
 
+    # await asyncio.sleep(0.05)
+
     for task in pending:
         task.cancel()
+
 
     # for task in done:
     #     print(task)
 
 
-async def receive_request(websocket: WebSocketServerProtocol, queue: asyncio.Queue):
+async def receive_request(websocket: WebSocketServerProtocol, in_queue: asyncio.Queue):
     try:
         async for message in websocket:
+            # message = await websocket.recv()
             data = json.loads(message)
             print_v(f"Received {str(data)} from websocket")
-            await queue.put(data)
-            return str(data)
+            in_queue.put_nowait(data)
+            # return str(data)
     except ConnectionClosed or AttributeError as e:
         print_v(e)
-        await asyncio.sleep(0)
-
-
-async def send_data(websocket: WebSocketServerProtocol, queue: asyncio.Queue):
-    out = await queue.get()
-    if connection['live'] or 'id' in out.keys() or 'echo' in out.keys():
-        print_v(f"Sending {str(out)} to websocket")
-        try:
-            await websocket.send(json.dumps(out))
-        except ConnectionClosed as e:
-            print_v(e)
-            # Replace the outgoing message in the queue if it could not be sent
-            # await queue.put(out)
     await asyncio.sleep(0)
 
 
-async def send_request(websocket: WebSocketClientProtocol, message: dict | asyncio.Queue, outcome_queue: asyncio.Queue):
-    if type(message) is dict:
-        out = message
-    elif type(message) is asyncio.Queue:
-        out = await message.get()
-    else:
-        raise TypeError(
-            f"send() got message of type {type(message)} as input. Input should be a dict or asyncio.Queue of dicts.")
+async def send_data(websocket: WebSocketServerProtocol, out_queue: asyncio.Queue):
+    out = await out_queue.get()
+    while True:
+        if (connection['live'] or 'id' in out.keys() or 'echo' in out.keys()) and out:
+            print_v(f"Sending {str(out)} to websocket")
+            try:
+                await websocket.send(json.dumps(out))
+            except Exception as e:
+                print_v(e)
+        if out_queue.empty():
+            break
+        else:
+            out = await out_queue.get()
+    await asyncio.sleep(0)
+
+
+async def send_request(websocket: WebSocketClientProtocol, out_queue: asyncio.Queue, outcome_queue: asyncio.Queue):
+
+    out = await out_queue.get()
 
     if type(out) is dict:
         if 'dummy' in out.keys():
@@ -71,11 +73,12 @@ async def send_request(websocket: WebSocketClientProtocol, message: dict | async
             await socket.send(json.dumps(out))
             # asyncio.run_coroutine_threadsafe(thread_send(), asyncio.get_running_loop())
     except OSError or ConnectionRefusedError as e:
-        await outcome_queue.put({'Exception': e})
+        outcome_queue.put_nowait({'Exception': e})
     await asyncio.sleep(0)
 
 
-async def receive_data(websocket: WebSocketClientProtocol, in_queue: asyncio.Queue):
+async def receive_data(websocket: WebSocketClientProtocol, in_queue: asyncio.Queue, outcome_queue: asyncio.Queue):
+    output = {}
     try:
         async with websocket as socket:
             async for message in socket:
@@ -83,58 +86,27 @@ async def receive_data(websocket: WebSocketClientProtocol, in_queue: asyncio.Que
                 # print('Incoming message received. Decoding.')
                 decoded_message = json.loads(message)
                 print(f"Received {decoded_message} from websocket")
-                await in_queue.put(decoded_message)
+                output.update(decoded_message)
+        if output:
+            in_queue.put_nowait(output)
     except Exception as e:
         print(e)
+        outcome_queue.put_nowait({'Exception': e})
     await asyncio.sleep(0)
 
 
-# Websockets handler
-async def handler(
-        websocket: (WebSocketClientProtocol | WebSocketServerProtocol),
-        queue_out: asyncio.Queue,
-        queue_in: asyncio.Queue,
-        tx_fcn: (WebSocketServerProtocol | WebSocketClientProtocol, asyncio.Queue),
-        rx_fcn: (WebSocketServerProtocol | WebSocketClientProtocol, asyncio.Queue),
-        outcome_queue=None,
-):
-    # rx = functools.partial(rx_fcn, websocket, queue_in)
-
-    async def rx(socket):
-        await rx_fcn(socket, queue_in)
-
-    if type(outcome_queue) is asyncio.Queue:
-        async def tx(socket):
-            await tx_fcn(socket, queue_out, outcome_queue)
-    else:
-        async def tx(socket):
-            await tx_fcn(socket, queue_out)
-
-    await race(rx, [websocket], tx, [websocket])
-    # await asyncio.sleep(0.1)
-    # return True
-
-
 async def client_handler(
-        websocket: (WebSocketClientProtocol | WebSocketServerProtocol),
+        websocket: WebSocketClientProtocol,
         queue_out: asyncio.Queue,
         queue_in: asyncio.Queue,
-        tx_fcn: (WebSocketServerProtocol | WebSocketClientProtocol, asyncio.Queue),
-        rx_fcn: (WebSocketServerProtocol | WebSocketClientProtocol, asyncio.Queue),
-        outcome_queue=None,
+        tx_fcn: (WebSocketClientProtocol, asyncio.Queue, asyncio.Queue),
+        rx_fcn: (WebSocketClientProtocol, asyncio.Queue, asyncio.Queue),
+        outcome_queue: asyncio.Queue,
 ):
-    async def rx(socket):
-        await rx_fcn(socket, queue_in)
+    # rx = functools.partial(rx_fcn, in_queue=queue_in, outcome_queue=outcome_queue)
+    # tx = functools.partial(tx_fcn, out_queue=queue_out, outcome_queue=outcome_queue)
 
-    if type(outcome_queue) is asyncio.Queue:
-        async def tx(socket):
-            await tx_fcn(socket, queue_out, outcome_queue)
-    else:
-        async def tx(socket):
-            await tx_fcn(socket, queue_out)
-
-    await asyncio.wait_for(tx(websocket), timeout=0.1)
-    await asyncio.wait_for(rx(websocket), timeout=0.1)
+    await handler(rx_fcn, [websocket, queue_in, outcome_queue], tx_fcn, [websocket, queue_out, outcome_queue])
 
 
 async def start_server(
@@ -145,10 +117,12 @@ async def start_server(
     print_v(f"Starting server at {host}:{port}")
 
     async def server_handler(websocket):
-        await handler(websocket, send_queue, receive_queue, tx_fcn, rx_fcn)
+        # await handler(websocket, send_queue, receive_queue, tx_fcn, rx_fcn)
+        await handler(rx_fcn, [websocket, receive_queue], tx_fcn, [websocket, send_queue])
+        await asyncio.sleep(0)
 
-    await websockets.server.serve(server_handler, host, port)
-    await asyncio.sleep(0)
+    server = await websockets.server.serve(server_handler, host, port)
+    await server.serve_forever()
 
     # stop = asyncio.Future()
     # while True:

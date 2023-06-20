@@ -8,6 +8,11 @@ except FileNotFoundError or ImportError:
 
 
 # Some timestamp generators
+def make_now():
+    now = datetime.now()
+    yield now
+
+
 def long_date():
     now = datetime.now()
     yield f"""{now.strftime('%A')}, {now.strftime('%B')} {now.strftime('%d')}, {now.strftime('%Y')}"""

@@ -46,3 +46,7 @@ websockets==11.0.3
 wheel==0.40.0
 yarl==1.9.2
 PySimpleGUI~=4.60.5
+
+pandas~=2.0.2
+plotly~=5.15.0
+kaleido~=0.2.1

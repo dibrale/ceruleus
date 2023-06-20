@@ -8,9 +8,10 @@ from pathlib import Path
 import websockets.client
 from websockets.legacy.client import WebSocketClientProtocol
 
-from modules.api import send_request, receive_data, handler, client_handler
+from modules.api import send_request, receive_data, client_handler
 from modules.stringutils import check_nil
 from modules.uiutils import *
+from modules.plotutils import make_figure, pd, sample_frame, update_data, data_list
 
 semaphore: dict[str, bool | None] = {
     'pause': None,
@@ -42,6 +43,8 @@ params: dict[str, typing.Any] = {
     'do_log_update': False
 }
 
+tree = Sg.TreeData()
+
 
 async def semaphore_manager(signals: dict, ui: Sg.Window):
     while True:
@@ -55,18 +58,19 @@ async def semaphore_manager(signals: dict, ui: Sg.Window):
                 ui[name].Update(value=0, disabled=False)
             else:
                 ui[name].Update(value=1, disabled=False)
-        await refresh(ui)
+        # await refresh(ui)
 
 
 async def switch_semaphore(ui: Sg.Window, key: str, values: dict, send_queue: asyncio.Queue):
     new_state = not bool(values[key])
     ui[key].Update(disabled=True)
     semaphore.update({key[:-7].lower(): new_state})
-    await refresh(ui)
-    await send_queue.put({key[:-7].lower(): new_state})
+    # await refresh(ui)
+    send_queue.put_nowait({key[:-7].lower(): new_state})
 
 
-async def message_processor(receive_queue: asyncio.Queue, pong_queue: asyncio.Queue, updates: list):
+async def message_processor(receive_queue: asyncio.Queue, pong_queue: asyncio.Queue, report_queue: asyncio.Queue,
+                            updates: list):
     while True:
         id_out = {}
         message = await receive_queue.get()
@@ -75,9 +79,9 @@ async def message_processor(receive_queue: asyncio.Queue, pong_queue: asyncio.Qu
             # print(f"Processing {key}")
             item = {key: message[key]}
             if key == 'pong':
-                await pong_queue.put(item)
+                pong_queue.put_nowait(item)
             elif key == 'script_name':
-                await pong_queue.put(item)
+                pong_queue.put_nowait(item)
             elif key in semaphore.keys():
                 semaphore.update(item)
             elif key == 'id':
@@ -95,7 +99,22 @@ async def message_processor(receive_queue: asyncio.Queue, pong_queue: asyncio.Qu
                 except Exception as e:
                     print(e)
         if id_out:
-            updates.append(id_out)
+            data_framelet = {'task': message['id']}
+
+            if message['status'].endswith('start'):
+                data_framelet.update({'start': message['timestamp']})
+                prefix = message['status'][:message['status'].find('start')]
+                if prefix:
+                    data_framelet['task'] = prefix + data_framelet['task']
+
+            if message['status'] == 'stop':
+                data_framelet.update({'stop': message['timestamp']})
+
+            if message['status'] == 'event':
+                data_framelet.update({'start': message['timestamp']})
+                data_framelet.update({'stop': message['timestamp'] + 1})
+
+            report_queue.put_nowait(data_framelet)
         await asyncio.sleep(0)
 
 
@@ -183,7 +202,8 @@ async def client_handler_wrapper(
         if not params['stop_exchange']:
             # print(f"Awaiting handler for {str(params['socket'])}")
             await asyncio.sleep(0)
-            handler_routine = await asyncio.to_thread(handler, params['socket'], send_queue, receive_queue, tx_fcn, rx_fcn, outcome_queue)
+            handler_routine = await asyncio.to_thread(client_handler, params['socket'], send_queue, receive_queue,
+                                                      tx_fcn, rx_fcn, outcome_queue)
             # await handler(params['socket'], send_queue, receive_queue, tx_fcn, rx_fcn, outcome_queue)
             await handler_routine
             await asyncio.sleep(0)
@@ -197,10 +217,10 @@ async def client_handler_wrapper(
 async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asyncio.Queue, attempts=3):
     attempt = 0
     while True:
-        attempt += 1
         await asyncio.sleep(0)
         values = params['values']
         if params['make_connect']:
+            attempt += 1
             # print('Connecting')
             params.update({'host': str(values['HOST']), 'port': str(values['PORT'])})
             params.update({'uri': f"ws://{params['host']}:{params['port']}"})
@@ -211,20 +231,18 @@ async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asynci
             #     request_queue, data_queue, outcome_queue, send_request, receive_data, loop), loop)
             window['STATUS'].Update(f"Connecting to {params['uri']}...")
             window['CONNECT'].Update(disabled=True)
-            await refresh(ui)
-
-            window['STATUS'].Update(f"Connecting to {params['uri']}...")
             window['CONNECTION_LIGHT'].Update(background_color='Yellow')
+            # await refresh(ui)
 
             await out_queue.put({'query': 'id'})
             params.update({'stop_exchange': False})
-            await asyncio.sleep(0)
+            await asyncio.sleep(0.1)
             window['STATUS'].Update(f"Sending request to {params['host']}:{params['port']}...")
             # await refresh(ui)
             await asyncio.sleep(0)
 
             try:
-                reply = await asyncio.wait_for(hi_queue.get(), 0.5)
+                reply = await asyncio.wait_for(hi_queue.get(), 1)
             except asyncio.exceptions.TimeoutError:
                 window['CONNECTION_LIGHT'].Update(background_color='Black')
                 params.update({'stop_exchange': True})
@@ -241,17 +259,17 @@ async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asynci
 
                 window['CONNECTION_LIGHT'].Update(background_color='Green')
 
-                await refresh(ui)
+                # await refresh(ui)
                 await asyncio.sleep(0.1)
-                await out_queue.put({'query': 'semaphore'})
+                #  await out_queue.put({'query': 'semaphore'})
                 await asyncio.sleep(0)
             params['make_connect'] = False
 
 
 async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue, handshake_queue: asyncio.Queue,
-                        outcome_queue: asyncio.Queue, loop: AbstractEventLoop):
+                        outcome_queue: asyncio.Queue, framelet_queue: asyncio.Queue, loop: AbstractEventLoop):
     while True:
-        event, values = window.read(timeout=50)
+        event, values = window.read(timeout=100)
         check_key = ''
         params['values'] = values
 
@@ -260,8 +278,19 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
             params['do_log_update'] = False
 
         if event == '__TIMEOUT__':
-            await asyncio.sleep(0)
-            await asyncio.sleep(0, loop)
+            if not params['stop_exchange'] and not params['make_connect']:
+                await asyncio.sleep(0)
+                framelet_queue.put_nowait({'update': 0})
+                for key in semaphore.keys():
+                    if semaphore[key] is None:
+                        request_queue.put_nowait({'query': 'semaphore'})
+                        break
+
+                # print(pd.DataFrame(data_list))
+                window['GRAPH_IMAGE'].Update(data=make_figure(pd.DataFrame(data_list)))
+            else:
+                for key in semaphore.keys():
+                    semaphore[key] = None
 
         # Remove row highlighting from previous table when switching tables
         if str(event).endswith('_PARAMS') and event != (params['last_table_event']):
@@ -287,7 +316,6 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                     params['update_table_init'] = True
 
         if event == "CONNECT":
-
             empty_queue(request_queue)
             empty_queue(data_queue)
             empty_queue(handshake_queue)
@@ -477,17 +505,6 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
             window['LIVE_UPDATE'].Update(value=True, disabled=False)
             await refresh(window)
 
-        '''
-        if event == '__TIMEOUT__' and values['LIVE_UPDATE']:
-            if params['update_tick'] > 0:
-                params['update_tick'] -= 1
-            else:
-                params['update_tick'] = params['ticks_per_update']
-                if window['LOG_CHECK'].visible is True:
-                    log['lines'] = await read_log_file(values['LOG_PATH'])
-                    await log_reload(values)
-        '''
-
         await asyncio.sleep(0)
 
         if str(event).endswith('FILTER'):
@@ -531,11 +548,13 @@ async def async_main():
     data_queue = asyncio.Queue()
     handshake_queue = asyncio.Queue()
     outcome_queue = asyncio.Queue()
+    framelet_queue = asyncio.Queue()
     updates_list = []
 
     # processor_task = loop.create_task(message_processor(data_queue, pong_queue, updates_list))
     # asyncio.run_coroutine_threadsafe(message_processor(data_queue, handshake_queue, updates_list), loop)
-    processor_routine = await asyncio.to_thread(message_processor, data_queue, handshake_queue, updates_list)
+    processor_routine = await asyncio.to_thread(message_processor, data_queue, handshake_queue, framelet_queue,
+                                                updates_list)
 
     # handler_task = loop.create_task(client_handler_wrapper(
     #                   request_queue, data_queue, outcome_queue, send_request, receive_data, loop))
@@ -552,19 +571,22 @@ async def async_main():
     # asyncio.run_coroutine_threadsafe(semaphore_manager(semaphore, window), loop)
     semaphore_routine = await asyncio.to_thread(semaphore_manager, semaphore, window)
 
-    window_task = loop.create_task(window_update(request_queue, data_queue, handshake_queue, outcome_queue, loop))
+    window_task = loop.create_task(
+        window_update(request_queue, data_queue, handshake_queue, outcome_queue, framelet_queue, loop))
     # asyncio.run_coroutine_threadsafe(window_update(request_queue, data_queue, pong_queue, outcome_queue, loop), loop)
     # window_routine = asyncio.to_thread(window_update, request_queue, data_queue, pong_queue, outcome_queue, loop)
     # asyncio.run_coroutine_threadsafe(window_routine, loop)
     # await asyncio.gather(ping_task, close_task, semaphore_task)
 
     # asyncio.run_coroutine_threadsafe(make_connect(window, request_queue, handshake_queue), loop)
-    connect_routine = await asyncio.to_thread(make_connect, window, request_queue, handshake_queue)
+    connect_routine = await asyncio.to_thread(make_connect, window, request_queue, handshake_queue, 3)
     # connect_task = loop.create_task(make_connect(window, request_queue, handshake_queue))
 
     # asyncio.run_coroutine_threadsafe(log_updater(loop), loop)
     # log_task = loop.create_task(log_updater(loop))
     log_routine = await asyncio.to_thread(log_updater)
+
+    update_data_routine = await asyncio.to_thread(update_data, framelet_queue)
 
     # await processor_task
 
@@ -573,8 +595,10 @@ async def async_main():
 
     # window.close()
 
-    await asyncio.gather(window_task, close_routine, connect_routine, handler_routine, semaphore_routine, processor_routine, log_routine)
+    await asyncio.gather(window_task, close_routine, connect_routine, handler_routine, semaphore_routine,
+                         processor_routine, log_routine, update_data_routine)
     # await window_task
+
 
 # The GUI elements are all declared in synchronous main(), since they only need to be declared once
 if __name__ == "__main__":
@@ -649,10 +673,18 @@ if __name__ == "__main__":
                       checkmark('SAVE_CHECK')],
 
                      ])],
-            [Sg.Tab('Status',
-                    [space(),
-                     [Sg.Text()]
-                     ])],
+            [Sg.Tab('Status', [
+                [Sg.Frame('Process History', [
+                    [Sg.Image(make_figure(sample_frame), key='GRAPH_IMAGE')]
+                ])],
+                [Sg.Button(button_text="Start Recording", key='RECORD', disabled=True,
+                           tooltip="Begin recording process history")] +
+                [Sg.Button(button_text="Save Data", key='SAVE_DATA', disabled=True,
+                           tooltip="Save process history data")] +
+                [Sg.Button(button_text="Save Image", key='SAVE_IMAGE', disabled=True,
+                           tooltip="Save process history image")] +
+                [Sg.Push()]
+            ])],
             [Sg.Tab('Log',
                     [space(),
                      input_field('Log file path', key='LOG_PATH') +
@@ -675,13 +707,25 @@ if __name__ == "__main__":
                      ])]
                      ])],
             [Sg.Tab('Results',
-                    [space(),
+                    [[Sg.Tree(data=tree,
+                              headings=['Size', ],
+                              select_mode=Sg.TABLE_SELECT_MODE_EXTENDED,
+                              num_rows=20,
+                              col0_width=40,
+                              key='TREE',
+                              enable_events=True,
+                              expand_x=True,
+                              expand_y=True,
+                              )], space(),
                      [Sg.Text()]
                      ])]
         ])],
         # [Sg.HSeparator()],
         [Sg.StatusBar('\t\t\t\t\t\t\t\t\t', key='STATUS'), indicator('CONNECTION_LIGHT', color='Black')[0]],
     ]
+
+    # List directory contents
+    add_files_in_folder('results', tree)
 
     # Declare the GUI window
     window = Sg.Window("Ceruleus Client", layout, resizable=True, finalize=True)

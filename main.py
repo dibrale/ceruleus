@@ -235,11 +235,14 @@ async def main():
     asyncio.run_coroutine_threadsafe(monitor_directory(params['squire_out_dir'], file_queue, text_queue, loop), loop)
 
     # Start server
-    asyncio.run_coroutine_threadsafe(start_server(send_data, receive_request,
-                                                  host=params['host'], port=params['port']), loop)
+    server_task = await asyncio.to_thread(start_server, send_data, receive_request,
+                                                  host=params['host'], port=params['port'])
+    asyncio.run_coroutine_threadsafe(server_task, loop)
 
     # Start signal manager
-    asyncio.run_coroutine_threadsafe(signal_manager(receive_queue, send_queue), loop)
+    # asyncio.run_coroutine_threadsafe(signal_manager(receive_queue, send_queue), loop)
+    manager_task = await asyncio.to_thread(signal_manager, receive_queue, send_queue)
+    asyncio.run_coroutine_threadsafe(manager_task, loop)
 
     while True:
         # Load all data needed to generate a prompt. Should be rate-limited by text_queue.get()
