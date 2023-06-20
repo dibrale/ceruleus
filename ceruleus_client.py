@@ -543,6 +543,9 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                 content = await file.read()
                 window['FILE_TEXT'].update(content)
 
+        if event == 'MAKE_RESULT':
+            window['FILE_TEXT'].update(make_blank(values['TREE'][0]))
+
         if event == 'SAVE_RESULT':
             async with aiofiles.open(values['TREE'][0], mode='w') as file:
                 await file.write(values['FILE_TEXT'])
@@ -551,9 +554,14 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
             if Path.is_file(Path(values['TREE'][0])) and (values['TREE'][0].endswith('.json') or values['TREE'][0].endswith('.txt')):
                 window['OPEN_RESULT'].Update(disabled=False)
                 window['SAVE_RESULT'].Update(disabled=False)
+                if values['TREE'][0].endswith('.json'):
+                    window['MAKE_RESULT'].Update(disabled=False)
+                else:
+                    window['MAKE_RESULT'].Update(disabled=True)
             else:
                 window['OPEN_RESULT'].Update(disabled=True)
                 window['SAVE_RESULT'].Update(disabled=True)
+                window['MAKE_RESULT'].Update(disabled=True)
 
         await asyncio.sleep(0)
 
@@ -738,6 +746,8 @@ if __name__ == "__main__":
                                      )],
                             [Sg.Button(button_text="Open", key='OPEN_RESULT', disabled=True,
                                        tooltip="Open a result or template file as text for editing")] +
+                            [Sg.Button(button_text="Regenerate", key='MAKE_RESULT', disabled=True,
+                                       tooltip="Create a blank result file template based on the file name")] +
                             [Sg.Button(button_text="Save", key='SAVE_RESULT', disabled=True,
                                        tooltip="Save to the selected file")]
                         ])]
@@ -751,6 +761,7 @@ if __name__ == "__main__":
 
     # List directory contents
     add_files_in_folder('results', tree)
+    # add_files_in_folder('squire_output', tree)
     add_files_in_folder('templates', tree)
     add_files_in_folder('work', tree)
 
