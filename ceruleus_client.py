@@ -538,6 +538,23 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                                                           stderr=STDOUT)
             await touch.wait()
 
+        if event == 'OPEN_RESULT':
+            async with aiofiles.open(values['TREE'][0], mode='r') as file:
+                content = await file.read()
+                window['FILE_TEXT'].update(content)
+
+        if event == 'SAVE_RESULT':
+            async with aiofiles.open(values['TREE'][0], mode='w') as file:
+                await file.write(values['FILE_TEXT'])
+
+        if event == 'TREE':
+            if Path.is_file(Path(values['TREE'][0])) and (values['TREE'][0].endswith('.json') or values['TREE'][0].endswith('.txt')):
+                window['OPEN_RESULT'].Update(disabled=False)
+                window['SAVE_RESULT'].Update(disabled=False)
+            else:
+                window['OPEN_RESULT'].Update(disabled=True)
+                window['SAVE_RESULT'].Update(disabled=True)
+
         await asyncio.sleep(0)
 
 
@@ -707,18 +724,26 @@ if __name__ == "__main__":
                      ])]
                      ])],
             [Sg.Tab('Results',
-                    [[Sg.Tree(data=tree,
-                              headings=['Size', ],
-                              select_mode=Sg.TABLE_SELECT_MODE_EXTENDED,
-                              num_rows=20,
-                              col0_width=40,
-                              key='TREE',
-                              enable_events=True,
-                              expand_x=True,
-                              expand_y=True,
-                              )], space(),
-                     [Sg.Text()]
-                     ])]
+                    [
+                        [Sg.Column([
+                            [Sg.Tree(data=tree,
+                                     headings=['Size', ],
+                                     # select_mode=Sg.TABLE_SELECT_MODE_EXTENDED,
+                                     num_rows=36,
+                                     col0_width=30,
+                                     key='TREE',
+                                     enable_events=True,
+                                     expand_x=True,
+                                     expand_y=True,
+                                     )],
+                            [Sg.Button(button_text="Open", key='OPEN_RESULT', disabled=True,
+                                       tooltip="Open a result or template file as text for editing")] +
+                            [Sg.Button(button_text="Save", key='SAVE_RESULT', disabled=True,
+                                       tooltip="Save to the selected file")]
+                        ])]
+                        +
+                        [Sg.Multiline('', size=(82, 40), key='FILE_TEXT')]
+                    ])]
         ])],
         # [Sg.HSeparator()],
         [Sg.StatusBar('\t\t\t\t\t\t\t\t\t', key='STATUS'), indicator('CONNECTION_LIGHT', color='Black')[0]],
@@ -726,6 +751,8 @@ if __name__ == "__main__":
 
     # List directory contents
     add_files_in_folder('results', tree)
+    add_files_in_folder('templates', tree)
+    add_files_in_folder('work', tree)
 
     # Declare the GUI window
     window = Sg.Window("Ceruleus Client", layout, resizable=True, finalize=True)

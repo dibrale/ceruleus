@@ -143,8 +143,10 @@ def empty_queue(q: asyncio.Queue):
         q.task_done()
 
 
-def add_files_in_folder(dir_name, tree: Sg.TreeData, parent=''):
+def add_files_in_folder(dir_name, tree: Sg.TreeData):
+    parent = dir_name
     files = os.listdir(dir_name)
+    tree.Insert('', dir_name, dir_name, values=[], icon=folder_icon)
     for f in files:
         fullname = os.path.join(dir_name, f)
         if os.path.isdir(fullname):            # if it's a folder, add folder and recurse
