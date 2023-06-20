@@ -40,7 +40,8 @@ params: dict[str, typing.Any] = {
     'ignore_list': [],
     'values': {},
     'make_connect': False,
-    'do_log_update': False
+    'do_log_update': False,
+    'do_record': False
 }
 
 tree = Sg.TreeData()
@@ -98,7 +99,7 @@ async def message_processor(receive_queue: asyncio.Queue, pong_queue: asyncio.Qu
                         f"{item[key].upper()}_WAITING_LIGHT", window, color_high='green'), asyncio.get_running_loop())
                 except Exception as e:
                     print(e)
-        if id_out:
+        if id_out and params['do_record']:
             data_framelet = {'task': message['id']}
 
             if message['status'].endswith('start'):
@@ -129,6 +130,8 @@ async def close_connection(text_queue: asyncio.Queue, send_queue: asyncio.Queue,
         while not send_queue.empty() or not receive_queue.empty():
             await asyncio.sleep(0)
         params['stop_exchange'] = True
+        window['RECORD'].Update('Record', button_color='green', disabled=True)
+        params['do_record'] = False
 
         # Turn off the semaphore
         semaphore.update({key: None for key in semaphore})
@@ -232,6 +235,8 @@ async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asynci
             window['STATUS'].Update(f"Connecting to {params['uri']}...")
             window['CONNECT'].Update(disabled=True)
             window['CONNECTION_LIGHT'].Update(background_color='Yellow')
+            window['RECORD'].Update('Record', button_color='green', disabled=True)
+            params['do_record'] = False
             # await refresh(ui)
 
             await out_queue.put({'query': 'id'})
@@ -258,6 +263,7 @@ async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asynci
                 window['DISCONNECT'].Update(disabled=False)
 
                 window['CONNECTION_LIGHT'].Update(background_color='Green')
+                window['RECORD'].Update(disabled=False)
 
                 # await refresh(ui)
                 await asyncio.sleep(0.1)
@@ -280,14 +286,15 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
         if event == '__TIMEOUT__':
             if not params['stop_exchange'] and not params['make_connect']:
                 await asyncio.sleep(0)
-                framelet_queue.put_nowait({'update': 0})
                 for key in semaphore.keys():
                     if semaphore[key] is None:
                         request_queue.put_nowait({'query': 'semaphore'})
                         break
 
                 # print(pd.DataFrame(data_list))
-                window['GRAPH_IMAGE'].Update(data=make_figure(pd.DataFrame(data_list)))
+                if params['do_record']:
+                    framelet_queue.put_nowait({'update': 0})
+                    window['GRAPH_IMAGE'].Update(data=make_figure(pd.DataFrame(data_list)))
             else:
                 for key in semaphore.keys():
                     semaphore[key] = None
@@ -563,6 +570,14 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                 window['SAVE_RESULT'].Update(disabled=True)
                 window['MAKE_RESULT'].Update(disabled=True)
 
+        if event == 'RECORD':
+            if params['do_record']:
+                window['RECORD'].Update('Record', button_color='green')
+                params['do_record'] = False
+            else:
+                window['RECORD'].Update('Pause', button_color='red')
+                params['do_record'] = True
+
         await asyncio.sleep(0)
 
 
@@ -702,7 +717,7 @@ if __name__ == "__main__":
                 [Sg.Frame('Process History', [
                     [Sg.Image(make_figure(sample_frame), key='GRAPH_IMAGE')]
                 ])],
-                [Sg.Button(button_text="Start Recording", key='RECORD', disabled=True,
+                [Sg.Button(button_text="Record", key='RECORD', disabled=True, button_color='green',
                            tooltip="Begin recording process history")] +
                 [Sg.Button(button_text="Save Data", key='SAVE_DATA', disabled=True,
                            tooltip="Save process history data")] +
