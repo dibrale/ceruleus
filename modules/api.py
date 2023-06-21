@@ -29,22 +29,23 @@ async def handler(fcn1: Callable, args1: list, fcn2: Callable, args2: list, time
 
 
 async def receive_request(websocket: WebSocketServerProtocol, in_queue: asyncio.Queue):
-    try:
-        async for message in websocket:
-            # message = await websocket.recv()
+    async for message in websocket:
+        try:
+            # recv_message = await websocket.recv()
             data = json.loads(message)
             print_v(f"Received {str(data)} from websocket")
             in_queue.put_nowait(data)
             # return str(data)
-    except ConnectionClosed or AttributeError as e:
-        print_v(e)
+        except Exception as e:
+            print_v(e)
+            pass
     await asyncio.sleep(0)
 
 
 async def send_data(websocket: WebSocketServerProtocol, out_queue: asyncio.Queue):
     out = await out_queue.get()
-    while True:
-        if (connection['live'] or 'id' in out.keys() or 'echo' in out.keys()) and out:
+    while 1:
+        if connection['live'] or 'id' in out.keys() or 'echo' in out.keys():
             print_v(f"Sending {str(out)} to websocket")
             try:
                 await websocket.send(json.dumps(out))
@@ -53,7 +54,7 @@ async def send_data(websocket: WebSocketServerProtocol, out_queue: asyncio.Queue
         if out_queue.empty():
             break
         else:
-            out = await out_queue.get()
+            out = out_queue.get_nowait()
     await asyncio.sleep(0)
 
 
@@ -72,7 +73,7 @@ async def send_request(websocket: WebSocketClientProtocol, out_queue: asyncio.Qu
             # async def thread_send():
             await socket.send(json.dumps(out))
             # asyncio.run_coroutine_threadsafe(thread_send(), asyncio.get_running_loop())
-    except OSError or ConnectionRefusedError as e:
+    except Exception as e:
         outcome_queue.put_nowait({'Exception': e})
     await asyncio.sleep(0)
 
@@ -142,6 +143,7 @@ async def start_server(
 
 
 # Define the update function here to use local queue context
+@functools.lru_cache()
 async def send_update(status='event', name=''):
     # Create message template for coroutine reporting
 

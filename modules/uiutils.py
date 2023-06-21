@@ -15,6 +15,7 @@ folder_icon = b'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsSAAAL
 file_icon = b'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsSAAALEgHS3X78AAABU0lEQVQ4y52TzStEURiHn/ecc6XG54JSdlMkNhYWsiILS0lsJaUsLW2Mv8CfIDtr2VtbY4GUEvmIZnKbZsY977Uwt2HcyW1+dTZvt6fn9557BGB+aaNQKBR2ifkbgWR+cX13ubO1svz++niVTA1ArDHDg91UahHFsMxbKWycYsjze4muTsP64vT43v7hSf/A0FgdjQPQWAmco68nB+T+SFSqNUQgcIbN1bn8Z3RwvL22MAvcu8TACFgrpMVZ4aUYcn77BMDkxGgemAGOHIBXxRjBWZMKoCPA2h6qEUSRR2MF6GxUUMUaIUgBCNTnAcm3H2G5YQfgvccYIXAtDH7FoKq/AaqKlbrBj2trFVXfBPAea4SOIIsBeN9kkCwxsNkAqRWy7+B7Z00G3xVc2wZeMSI4S7sVYkSk5Z/4PyBWROqvox3A28PN2cjUwinQC9QyckKALxj4kv2auK0xAAAAAElFTkSuQmCC'
 
 
+@functools.lru_cache()
 async def refresh(ui: Sg.Window):
     await asyncio.sleep(0)
     ui.refresh()
@@ -30,6 +31,7 @@ def exists(var: Any) -> bool:
         return True
 
 
+@functools.lru_cache()
 async def flash(key, ui: Sg.Window, color_low='Black', color_high='Green', interval_low=0.5, interval_high=0.5):
     high_bg = functools.partial(ui[key].Update, background_color=color_high)
     low_bg = functools.partial(ui[key].Update, background_color=color_low)
@@ -138,6 +140,7 @@ def checkmark(key: str):
     return Sg.Text('V', key=key, text_color='light green', visible=False, font='Courier 14 bold')
 
 
+@functools.lru_cache()
 def empty_queue(q: asyncio.Queue):
     while not q.empty():
         q.get_nowait()
@@ -157,6 +160,7 @@ def add_files_in_folder(dir_name, tree: Sg.TreeData):
             tree.Insert(parent, fullname, f, values=[os.stat(fullname).st_size], icon=file_icon)
 
 
+@functools.lru_cache()
 def make_blank(path: str) -> str:
     split_path = re.split(r'[.\\/]', path)
     template = ''
@@ -167,3 +171,6 @@ def make_blank(path: str) -> str:
         template = '{\n' + '    "{word}": []'.format(word=word) + '\n}'
     return template
 
+
+def process_logline(line: str) -> str:
+    out = ''

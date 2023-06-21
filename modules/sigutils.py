@@ -83,10 +83,12 @@ async def signal(key, go_value=True, go_on_none=False, check_frequency=0.25, che
         await asyncio.sleep(check_frequency)
         check_number += 1
         if check_number == checks_per_reminder:
-            send_queue.put_nowait({'waiting': key})
+            if connection['live']:
+                send_queue.put_nowait({'waiting': key})
             check_number = 0
         print_v(f"Waiting at semaphore for {key}:{go_value}", print_wait)
         print_wait = False
         await asyncio.sleep(0)
-    send_queue.put_nowait({'going': key})
+    if connection['live']:
+        send_queue.put_nowait({'going': key})
     print_v(f"Semaphore cleared with {key}:{sig}", params['verbose'])
