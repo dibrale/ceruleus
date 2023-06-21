@@ -767,7 +767,7 @@ if __name__ == "__main__":
                          [Sg.Radio('LLM', 'PARAM_RADIO', key='LLM', enable_events=True)] +
                          [Sg.Radio('Webui', 'PARAM_RADIO', key='WEBUI', enable_events=True)] + [
                              Sg.Push()],
-                         input_field('Parameter') + input_field('Value') +
+                         input_field('Parameter', length=30) + input_field('Value', length=60) +
                          [Sg.Button(button_text="Modify", key='PARAMS_MODIFY', disabled=True,
                                     tooltip="Add or modify parameter and associated value")] +
                          [Sg.Button(button_text="Delete", key='PARAMS_DELETE', disabled=True,
@@ -802,7 +802,7 @@ if __name__ == "__main__":
                                     initial_folder=os.getcwd(), tooltip="Browse for a log file")] +
                      [Sg.Button(button_text="Load", key='LOG_LOAD', disabled=True,
                                 tooltip="Load the log file at the selected path"), checkmark('LOG_CHECK')],
-                     [Sg.Multiline(pad=(10, 10), key='LOG', size=(130, 30), autoscroll=True)],
+                     [Sg.Multiline(pad=(10, 10), key='LOG', size=(130, 30), autoscroll=True, expand_x=True, expand_y=True)],
                      [Sg.Frame('Log Filters', [
                          input_field('Include item', key='FILTER') + input_field('Ignore list',
                                                                                  key='IGNORE_FILTER', length=88),
@@ -812,7 +812,7 @@ if __name__ == "__main__":
                                     tooltip="Apply the entered filter to the log")] +
                          [Sg.Button(button_text="Clear", key='CLEAR_FILTER', disabled=True,
                                     tooltip="Clear the filter")]
-                     ])]
+                     ], expand_x=True)]
                      ])],
             [Sg.Tab('Results',
                     [
@@ -835,7 +835,7 @@ if __name__ == "__main__":
                                        tooltip="Save to the selected file")]
                         ])]
                         +
-                        [Sg.Multiline('', size=(82, 40), key='FILE_TEXT')]
+                        [Sg.Multiline('', size=(82, 40), key='FILE_TEXT', expand_x=True, expand_y=True)]
                     ])]
         ], key='TABS')],
         # [Sg.HSeparator()],

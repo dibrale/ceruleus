@@ -72,8 +72,8 @@ def param_table(parameters: dict, title='', key='', spaces_a=4, spaces_b=6) -> S
     pad_b = int(spaces_b / 2) * ' '
     table = Sg.Table([[k, v] for k, v in parameters.items()],
                      headings=[f'{pad_a}Parameter{pad_a}', f'{pad_b}Value{pad_b}'], key=key, justification='left',
-                     select_mode=Sg.TABLE_SELECT_MODE_BROWSE, enable_events=True, num_rows=25)
-    return Sg.Frame(title, [[table]])
+                     select_mode=Sg.TABLE_SELECT_MODE_BROWSE, enable_events=True, num_rows=25, expand_x=True, expand_y=True)
+    return Sg.Frame(title, [[table]], expand_x=True, expand_y=True)
 
 
 def update_semaphore(semaphore: dict, ui: Sg.Window, color_low='Black', color_go='Green', color_stop='Red'):
