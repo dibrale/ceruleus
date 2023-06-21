@@ -291,10 +291,10 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                         outcome_queue: asyncio.Queue, framelet_queue: asyncio.Queue, loop: AbstractEventLoop):
     while 1:
         # event, values = window.read(timeout=100)
-        event, values = window.read(timeout=90)
+        event, values = window.read(timeout=80)
         check_key = ''
         params['values'] = values
-        await asyncio.sleep(0.005)
+        await asyncio.sleep(0.01)
 
         if event == '__TIMEOUT__':
 
@@ -639,7 +639,7 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
         elif event == "Exit" or event == Sg.WIN_CLOSED:
             return
 
-        await asyncio.sleep(0.005)
+        await asyncio.sleep(0.01)
 
 
 async def async_main():
