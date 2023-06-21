@@ -48,7 +48,8 @@ params: dict[str, typing.Any] = {
     'make_connect': False,
     'do_log_update': False,
     'do_record': False,
-    'closing': False
+    'closing': False,
+    'live_update': False
 }
 
 tree = Sg.TreeData()
@@ -162,13 +163,12 @@ def table_reload(tracker: dict, table_key: str):
     window[table_key].Update([[k, v] for k, v in tracker.items()])
 
 
-async def log_reload(values):
+def log_reload(values):
     lines_out = []
     # print(f"Ignore list: {params['ignore_list']}. Nil: {check_nil(params['ignore_list'])}")
     # print(f"Include item: {params['filter_text']}. Nil: {check_nil(params['filter_text'])}")
     for line in log['lines']:
         ignore_line = False
-        await asyncio.sleep(0)
         if not check_nil(params['ignore_list']):
             for phrase in params['ignore_list']:
                 if phrase in line:
@@ -186,23 +186,19 @@ async def log_reload(values):
         lines_out.append(line)
 
     params['do_log_update'] = True
-    await asyncio.sleep(0)
     log.update({'lines': lines_out})
 
 
 async def log_updater():
     while 1:
-        values = params['values']
-        # print(values['LIVE_UPDATE'])
-        if values['LIVE_UPDATE']:
-            log['lines'] = await read_log_file(values['LOG_PATH'])
+        if params['live_update']:
+            log['lines'] = await read_log_file(params['values']['LOG_PATH'])
             print('Read log file')
-            await asyncio.sleep(0)
-            await log_reload(values)
+            log_reload(params['values'])
             print('Reloaded log lines')
-            await asyncio.sleep(0)
-        else:
             await asyncio.sleep(1)
+
+        await asyncio.sleep(0)
 
 
 async def client_handler_wrapper(
@@ -302,11 +298,12 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
         check_key = ''
         params['values'] = values
 
-        if params['do_log_update']:
-            window['LOG'].Update('\n'.join(log['lines']))
-            params['do_log_update'] = False
-
         if event == '__TIMEOUT__':
+
+            if params['do_log_update']:
+                window['LOG'].Update('\n'.join(log['lines']))
+                params['do_log_update'] = False
+
             if not params['stop_exchange'] and not params['make_connect']:
                 if params['semaphore_tick'] == params['ticks_per_semaphore']:
                     params['semaphore_tick'] = 0
@@ -537,9 +534,12 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
         if event == 'LOG_LOAD':
             log['lines'] = await read_log_file(values['LOG_PATH'])
             window['LOG_CHECK'].Update(visible=True)
-            await log_reload(values)
-            window['LIVE_UPDATE'].Update(value=True, disabled=False)
-            await refresh(window)
+            log_reload(values)
+            params['do_log_update'] = True
+            window['LIVE_UPDATE'].Update(disabled=False)
+
+        if event == 'LIVE_UPDATE':
+            params['live_update'] = values['LIVE_UPDATE']
 
         await asyncio.sleep(0)
 
@@ -555,7 +555,7 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
             params['filter_text'] = values['FILTER']
             params['ignore_list'] = values['IGNORE_FILTER'].split(',')
             window['APPLY_FILTER'].Update(disabled=True)
-            await log_reload(values)
+            log_reload(values)
 
         if event == 'CLEAR_FILTER':
             params['filter_text'] = ''
@@ -564,10 +564,10 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
             window['IGNORE_FILTER'].Update('')
             window['APPLY_FILTER'].Update(disabled=True)
             window['CLEAR_FILTER'].Update(disabled=True)
-            await log_reload(values)
+            log_reload(values)
 
         if event == 'DEL_FILTER':
-            await log_reload(values)
+            log_reload(values)
 
         if event == 'TOUCH':
             touch = await asyncio.create_subprocess_shell(f"touch {values['SQUIRE_OUT_PATH']}", stdin=PIPE, stdout=PIPE,
@@ -808,7 +808,7 @@ if __name__ == "__main__":
                      [Sg.Frame('Log Filters', [
                          input_field('Include item', key='FILTER') + input_field('Ignore list',
                                                                                  key='IGNORE_FILTER', length=88),
-                         [Sg.Checkbox('Live Update', key='LIVE_UPDATE', disabled=True)] +
+                         [Sg.Checkbox('Live Update', key='LIVE_UPDATE', disabled=True, enable_events=True)] +
                          [Sg.Checkbox('Remove Filtered Text', key='DEL_FILTER', enable_events=True)] +
                          [Sg.Button(button_text="Apply", key='APPLY_FILTER', disabled=True,
                                     tooltip="Apply the entered filter to the log")] +

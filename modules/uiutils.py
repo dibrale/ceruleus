@@ -15,13 +15,6 @@ folder_icon = b'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsSAAAL
 file_icon = b'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsSAAALEgHS3X78AAABU0lEQVQ4y52TzStEURiHn/ecc6XG54JSdlMkNhYWsiILS0lsJaUsLW2Mv8CfIDtr2VtbY4GUEvmIZnKbZsY977Uwt2HcyW1+dTZvt6fn9557BGB+aaNQKBR2ifkbgWR+cX13ubO1svz++niVTA1ArDHDg91UahHFsMxbKWycYsjze4muTsP64vT43v7hSf/A0FgdjQPQWAmco68nB+T+SFSqNUQgcIbN1bn8Z3RwvL22MAvcu8TACFgrpMVZ4aUYcn77BMDkxGgemAGOHIBXxRjBWZMKoCPA2h6qEUSRR2MF6GxUUMUaIUgBCNTnAcm3H2G5YQfgvccYIXAtDH7FoKq/AaqKlbrBj2trFVXfBPAea4SOIIsBeN9kkCwxsNkAqRWy7+B7Z00G3xVc2wZeMSI4S7sVYkSk5Z/4PyBWROqvox3A28PN2cjUwinQC9QyckKALxj4kv2auK0xAAAAAElFTkSuQmCC'
 
 
-@functools.lru_cache()
-async def refresh(ui: Sg.Window):
-    await asyncio.sleep(0)
-    ui.refresh()
-    await asyncio.sleep(0)
-
-
 def exists(var: Any) -> bool:
     try:
         var
@@ -102,7 +95,6 @@ async def read_log_file(file_path: str, num_lines=int(9001)) -> list[str]:
         async with aiofiles.open(file_path, mode='r') as file:
             async for line in file:
                 log_lines += [str(line).strip()]
-                await asyncio.sleep(0)
     except Exception as e:
         error_type = str(type(e))
         error_str = error_type.lstrip("<class '").rstrip("'>")
