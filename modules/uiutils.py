@@ -158,11 +158,12 @@ def add_files_in_folder(dir_name, tree: Sg.TreeData):
 
 
 def make_blank(path: str) -> str:
-    split_path = re.split(r'[.\\]', path)
+    split_path = re.split(r'[.\\/]', path)
     template = ''
 
     if split_path[0] == 'results' or split_path[0] == 'work':
         word = split_path[-2].split('_')[0]
+        print('Word: ' + word)
         template = '{\n' + '    "{word}": []'.format(word=word) + '\n}'
     return template
 
