@@ -593,8 +593,12 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                 initialfile='ceruleus_' + str(datetime.datetime.now().timestamp()) + '.txt',
                 title="Save As"
             )
-            async with aiofiles.open(save_filename, mode='w') as file:
-                await file.write(str(process['data']))
+            if save_filename:
+                try:
+                    async with aiofiles.open(save_filename, mode='w') as file:
+                        await file.write(str(process['data']))
+                except Exception as e:
+                    Sg.PopupError(str(e), title='Error', non_blocking=True)
 
         if event == 'SAVE_IMAGE':
             save_filename = Sg.tk.filedialog.asksaveasfilename(
@@ -604,7 +608,11 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                 initialfile='ceruleus_' + str(datetime.datetime.now().timestamp()) + '.png',
                 title="Save As"
             )
-            make_figure(pd.DataFrame(process['data']), mode='write', path=save_filename)
+            if save_filename:
+                try:
+                    make_figure(pd.DataFrame(process['data']), mode='write', path=save_filename)
+                except Exception as e:
+                    Sg.PopupError(str(e), title='Error', non_blocking=True)
 
         await asyncio.sleep(0)
 
