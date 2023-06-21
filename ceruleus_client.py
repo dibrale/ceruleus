@@ -56,9 +56,9 @@ tree = Sg.TreeData()
 
 
 async def semaphore_manager(signals: dict, ui: Sg.Window):
-    while True:
-        update_semaphore(signals, ui)
+    while 1:
         await asyncio.sleep(0)
+        update_semaphore(signals, ui)
         for item in signals.keys():
             name = item.upper() + "_TOGGLE"
             if signals[item] is None:
@@ -70,7 +70,7 @@ async def semaphore_manager(signals: dict, ui: Sg.Window):
         # await refresh(ui)
 
 
-async def switch_semaphore(ui: Sg.Window, key: str, values: dict, send_queue: asyncio.Queue):
+def switch_semaphore(ui: Sg.Window, key: str, values: dict, send_queue: asyncio.Queue):
     new_state = not bool(values[key])
     ui[key].Update(disabled=True)
     semaphore.update({key[:-7].lower(): new_state})
@@ -127,7 +127,7 @@ async def message_processor(receive_queue: asyncio.Queue, pong_queue: asyncio.Qu
                 data_framelet.update({'stop': message['timestamp'] + 1})
 
             report_queue.put_nowait(data_framelet)
-        await asyncio.sleep(0)
+        # await asyncio.sleep(0)
 
 
 async def close_connection(text_queue: asyncio.Queue, send_queue: asyncio.Queue, receive_queue: asyncio.Queue):
@@ -156,7 +156,7 @@ async def close_connection(text_queue: asyncio.Queue, send_queue: asyncio.Queue,
         window['CONNECT'].Update(disabled=False)
         window['DISCONNECT'].Update(disabled=True)
         params['closing'] = False
-        await asyncio.sleep(0)
+        # await asyncio.sleep(0)
 
 
 def table_reload(tracker: dict, table_key: str):
@@ -191,14 +191,12 @@ def log_reload(values):
 
 async def log_updater():
     while 1:
+        await asyncio.sleep(0.5)
         if params['live_update']:
             log['lines'] = await read_log_file(params['values']['LOG_PATH'])
             print('Read log file')
             log_reload(params['values'])
             print('Reloaded log lines')
-            await asyncio.sleep(1)
-
-        await asyncio.sleep(0)
 
 
 async def client_handler_wrapper(
@@ -212,18 +210,16 @@ async def client_handler_wrapper(
     # async def queued_handler():
     #     await handler(params['socket'], send_queue, receive_queue, tx_fcn, rx_fcn, outcome_queue)
 
-    while True:
+    while 1:
 
         # handler_task = loop.create_task(queued_handler())
 
         if not params['stop_exchange']:
             # print(f"Awaiting handler for {str(params['socket'])}")
-            await asyncio.sleep(0)
             handler_routine = await asyncio.to_thread(client_handler, params['socket'], send_queue, receive_queue,
                                                       tx_fcn, rx_fcn, outcome_queue)
             # await handler(params['socket'], send_queue, receive_queue, tx_fcn, rx_fcn, outcome_queue)
             await handler_routine
-            await asyncio.sleep(0)
             # await queued_handler()
             # await handler_task
             # print('Handler done')
@@ -236,15 +232,16 @@ async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asynci
     attempt = 0
     while 1:
         await asyncio.sleep(0)
-        values = params['values']
+
         if params['make_connect']:
+            # values = params['values']
             attempt += 1
             # print('Connecting')
-            params.update({'host': str(values['HOST']), 'port': str(values['PORT'])})
+            params.update({'host': str(params['values']['HOST']), 'port': str(params['values']['PORT'])})
             params.update({'uri': f"ws://{params['host']}:{params['port']}"})
             params.update({'socket': websockets.client.connect(params['uri'])})
 
-            await asyncio.sleep(0)
+            # await asyncio.sleep(0)
             # asyncio.run_coroutine_threadsafe(client_handler_wrapper(
             #     request_queue, data_queue, outcome_queue, send_request, receive_data, loop), loop)
             window['STATUS'].Update(f"Connecting to {params['uri']}...")
@@ -260,7 +257,7 @@ async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asynci
             # await asyncio.sleep(0.1)
             window['STATUS'].Update(f"Sending request to {params['host']}:{params['port']}...")
             # await refresh(ui)
-            await asyncio.sleep(0)
+            # await asyncio.sleep(0)
 
             try:
                 reply = await asyncio.wait_for(hi_queue.get(), 3)
@@ -283,9 +280,8 @@ async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asynci
                 attempt = 0
 
                 # await refresh(ui)
-                await asyncio.sleep(0.1)
+                # await asyncio.sleep(0.1)
                 #  await out_queue.put({'query': 'semaphore'})
-                await asyncio.sleep(0)
             params['make_connect'] = False
             params['semaphore_tick'] = 0
 
@@ -294,7 +290,8 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                         handshake_queue: asyncio.Queue,
                         outcome_queue: asyncio.Queue, framelet_queue: asyncio.Queue, loop: AbstractEventLoop):
     while 1:
-        event, values = window.read(timeout=100)
+        # event, values = window.read(timeout=100)
+        event, values = window.read(timeout=50)
         check_key = ''
         params['values'] = values
 
@@ -307,7 +304,7 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
             if not params['stop_exchange'] and not params['make_connect']:
                 if params['semaphore_tick'] == params['ticks_per_semaphore']:
                     params['semaphore_tick'] = 0
-                    await asyncio.sleep(0)
+                    # await asyncio.sleep(0)
                     for key in semaphore.keys():
                         if semaphore[key] is None:
                             window['STATUS'].Update('Requesting semaphore status')
@@ -325,30 +322,7 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                 for key in semaphore.keys():
                     semaphore[key] = None
 
-        # Remove row highlighting from previous table when switching tables
-        if str(event).endswith('_PARAMS') and event != (params['last_table_event']):
-            if not params['update_table_init']:
-                params['last_table_event'] = event
-
-            if params['update_table']:
-                if params['last_table_event'] == 'SERVER_PARAMS':
-                    window['SERVER_PARAMS'].Update([[k, v] for k, v in server_params.items()])
-                elif params['last_table_event'] == 'LLM_PARAMS':
-                    window['LLM_PARAMS'].Update([[k, v] for k, v in llm_params.items()])
-                elif params['last_table_event'] == 'WEBUI_PARAMS':
-                    window['WEBUI_PARAMS'].Update([[k, v] for k, v in webui_params.items()])
-
-                params.update({'last_table_event': event})
-
-                params['update_table'] = False
-            else:
-                params['update_table'] = True
-                if params['update_table_init']:
-                    continue
-                else:
-                    params['update_table_init'] = True
-
-        if event == "CONNECT":
+        elif event == "CONNECT":
             empty_queue(request_queue)
             empty_queue(data_queue)
             empty_queue(handshake_queue)
@@ -358,7 +332,7 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
 
             # asyncio.run_coroutine_threadsafe(make_connect(values, request_queue, handshake_queue), loop)
 
-        if event == 'PARAMS_PATH':
+        elif event == 'PARAMS_PATH':
             path = Path(values['PARAMS_PATH'])
             window['SAVE_CHECK'].Update(visible=False)
             window['LOAD_CHECK'].Update(visible=False)
@@ -375,7 +349,7 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                 else:
                     window['PARAMS_SAVE'].Update(disabled=True)
 
-        if event == 'PARAMS_LOAD':
+        elif event == 'PARAMS_LOAD':
             [server, llm, webui] = await load_json_data(values['PARAMS_PATH'])
             server_params.update(server)
             llm_params.update(llm)
@@ -387,53 +361,11 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
             params.update({'update_table_init': False})
             params.update({'update_table': False})
 
-        if event == 'SERVER_PARAMS':
-            window['SERVER'].Update(True)
-            window['LLM'].Update(False)
-            window['WEBUI'].Update(False)
-            key_list = []
-            for key in server_params.keys():
-                key_list += [key]
-            try:
-                window['PARAMETER'].Update(key_list[int(values['SERVER_PARAMS'][0])])
-                check_key = key_list[int(values['SERVER_PARAMS'][0])]
-                window['VALUE'].Update(server_params[key_list[int(values['SERVER_PARAMS'][0])]])
-            except IndexError as e:
-                pass
-
-        if event == 'LLM_PARAMS':
-            window['SERVER'].Update(False)
-            window['LLM'].Update(True)
-            window['WEBUI'].Update(False)
-            key_list = []
-            for key in llm_params.keys():
-                key_list += [key]
-            try:
-                window['PARAMETER'].Update(key_list[int(values['LLM_PARAMS'][0])])
-                check_key = key_list[int(values['LLM_PARAMS'][0])]
-                window['VALUE'].Update(llm_params[key_list[int(values['LLM_PARAMS'][0])]])
-            except IndexError as e:
-                pass
-
-        if event == 'WEBUI_PARAMS':
-            window['SERVER'].Update(False)
-            window['LLM'].Update(False)
-            window['WEBUI'].Update(True)
-            key_list = []
-            for key in webui_params.keys():
-                key_list += [key]
-            try:
-                window['PARAMETER'].Update(key_list[int(values['WEBUI_PARAMS'][0])])
-                check_key = key_list[int(values['WEBUI_PARAMS'][0])]
-                window['VALUE'].Update(webui_params[key_list[int(values['WEBUI_PARAMS'][0])]])
-            except IndexError as e:
-                pass
-
-        if event == 'PARAMS_SAVE':
+        elif event == 'PARAMS_SAVE':
             await write_json_data([server_params, llm_params, webui_params], values['PARAMS_PATH'])
             window['SAVE_CHECK'].Update(visible=True)
 
-        if event == 'PARAMS_MODIFY':
+        elif event == 'PARAMS_MODIFY':
             window['SAVE_CHECK'].Update(visible=False)
             window['LOAD_CHECK'].Update(visible=False)
             new_param = {values['PARAMETER']: values['VALUE']}
@@ -452,6 +384,71 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
 
         if event in ['PARAMETER', 'VALUE', 'PARAMS_DELETE', 'PARAMS_MODIFY', 'PARAMS_LOAD', 'SERVER', 'LLM',
                      'WEBUI'] or str(event).endswith('_PARAMS'):
+            # Remove row highlighting from previous table when switching tables
+            if str(event).endswith('_PARAMS') and event != (params['last_table_event']):
+                if not params['update_table_init']:
+                    params['last_table_event'] = event
+
+                if params['update_table']:
+                    if params['last_table_event'] == 'SERVER_PARAMS':
+                        window['SERVER_PARAMS'].Update([[k, v] for k, v in server_params.items()])
+                    elif params['last_table_event'] == 'LLM_PARAMS':
+                        window['LLM_PARAMS'].Update([[k, v] for k, v in llm_params.items()])
+                    elif params['last_table_event'] == 'WEBUI_PARAMS':
+                        window['WEBUI_PARAMS'].Update([[k, v] for k, v in webui_params.items()])
+
+                    params.update({'last_table_event': event})
+
+                    params['update_table'] = False
+                else:
+                    params['update_table'] = True
+                    if params['update_table_init']:
+                        continue
+                    else:
+                        params['update_table_init'] = True
+
+            if event == 'SERVER_PARAMS':
+                window['SERVER'].Update(True)
+                window['LLM'].Update(False)
+                window['WEBUI'].Update(False)
+                key_list = []
+                for key in server_params.keys():
+                    key_list += [key]
+                try:
+                    window['PARAMETER'].Update(key_list[int(values['SERVER_PARAMS'][0])])
+                    check_key = key_list[int(values['SERVER_PARAMS'][0])]
+                    window['VALUE'].Update(server_params[key_list[int(values['SERVER_PARAMS'][0])]])
+                except IndexError as e:
+                    pass
+
+            elif event == 'LLM_PARAMS':
+                window['SERVER'].Update(False)
+                window['LLM'].Update(True)
+                window['WEBUI'].Update(False)
+                key_list = []
+                for key in llm_params.keys():
+                    key_list += [key]
+                try:
+                    window['PARAMETER'].Update(key_list[int(values['LLM_PARAMS'][0])])
+                    check_key = key_list[int(values['LLM_PARAMS'][0])]
+                    window['VALUE'].Update(llm_params[key_list[int(values['LLM_PARAMS'][0])]])
+                except IndexError as e:
+                    pass
+
+            elif event == 'WEBUI_PARAMS':
+                window['SERVER'].Update(False)
+                window['LLM'].Update(False)
+                window['WEBUI'].Update(True)
+                key_list = []
+                for key in webui_params.keys():
+                    key_list += [key]
+                try:
+                    window['PARAMETER'].Update(key_list[int(values['WEBUI_PARAMS'][0])])
+                    check_key = key_list[int(values['WEBUI_PARAMS'][0])]
+                    window['VALUE'].Update(webui_params[key_list[int(values['WEBUI_PARAMS'][0])]])
+                except IndexError as e:
+                    pass
+
             if str(event).endswith('_PARAMS') or ((bool(values['VALUE']) | bool(values['PARAMETER'])) & (
                     values['SERVER'] | values['LLM'] | values['WEBUI'] | (event in ['SERVER', 'LLM', 'WEBUI']))):
                 window['PARAMS_MODIFY'].Update(disabled=False)
@@ -511,18 +508,14 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
             params.update({'update_table_init': False})
             params.update({'update_table': False})
 
-        # Exit
-        if event == "Exit" or event == Sg.WIN_CLOSED:
-            return
-
-        if event == "DISCONNECT":
+        elif event == "DISCONNECT":
             window['CONNECT'].Update(disabled=True)
             await outcome_queue.put("Connection closed")
 
         if event[-7:] == '_TOGGLE':
-            await switch_semaphore(window, event, values, request_queue)
+            switch_semaphore(window, event, values, request_queue)
 
-        if event == 'LOG_PATH':
+        elif event == 'LOG_PATH':
             path = Path(values['LOG_PATH'])
             window['LOG_CHECK'].Update(visible=False)
             window['LIVE_UPDATE'].Update(value=False, disabled=True)
@@ -531,19 +524,19 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
             else:
                 window['LOG_LOAD'].Update(disabled=True)
 
-        if event == 'LOG_LOAD':
+        elif event == 'LOG_LOAD':
             log['lines'] = await read_log_file(values['LOG_PATH'])
             window['LOG_CHECK'].Update(visible=True)
             log_reload(values)
             params['do_log_update'] = True
             window['LIVE_UPDATE'].Update(disabled=False)
 
-        if event == 'LIVE_UPDATE':
+        elif event == 'LIVE_UPDATE':
             params['live_update'] = values['LIVE_UPDATE']
 
-        await asyncio.sleep(0)
+        # await asyncio.sleep(0)
 
-        if str(event).endswith('FILTER'):
+        elif str(event).endswith('FILTER'):
             if not values['FILTER'] and not values['IGNORE_FILTER']:
                 window['APPLY_FILTER'].Update(disabled=True)
                 window['CLEAR_FILTER'].Update(disabled=False)
@@ -551,42 +544,42 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                 window['APPLY_FILTER'].Update(disabled=False)
                 window['CLEAR_FILTER'].Update(disabled=False)
 
-        if event == 'APPLY_FILTER':
-            params['filter_text'] = values['FILTER']
-            params['ignore_list'] = values['IGNORE_FILTER'].split(',')
-            window['APPLY_FILTER'].Update(disabled=True)
+            if event == 'APPLY_FILTER':
+                params['filter_text'] = values['FILTER']
+                params['ignore_list'] = values['IGNORE_FILTER'].split(',')
+                window['APPLY_FILTER'].Update(disabled=True)
+
+            elif event == 'CLEAR_FILTER':
+                params['filter_text'] = ''
+                params['ignore_list'] = []
+                window['FILTER'].Update('')
+                window['IGNORE_FILTER'].Update('')
+                window['APPLY_FILTER'].Update(disabled=True)
+                window['CLEAR_FILTER'].Update(disabled=True)
+
+            elif event == 'DEL_FILTER':
+                pass
+
             log_reload(values)
 
-        if event == 'CLEAR_FILTER':
-            params['filter_text'] = ''
-            params['ignore_list'] = []
-            window['FILTER'].Update('')
-            window['IGNORE_FILTER'].Update('')
-            window['APPLY_FILTER'].Update(disabled=True)
-            window['CLEAR_FILTER'].Update(disabled=True)
-            log_reload(values)
-
-        if event == 'DEL_FILTER':
-            log_reload(values)
-
-        if event == 'TOUCH':
+        elif event == 'TOUCH':
             touch = await asyncio.create_subprocess_shell(f"touch {values['SQUIRE_OUT_PATH']}", stdin=PIPE, stdout=PIPE,
                                                           stderr=STDOUT)
             await touch.wait()
 
-        if event == 'OPEN_RESULT':
+        elif event == 'OPEN_RESULT':
             async with aiofiles.open(values['TREE'][0], mode='r') as file:
                 content = await file.read()
                 window['FILE_TEXT'].update(content)
 
-        if event == 'MAKE_RESULT':
+        elif event == 'MAKE_RESULT':
             window['FILE_TEXT'].update(make_blank(values['TREE'][0]))
 
-        if event == 'SAVE_RESULT':
+        elif event == 'SAVE_RESULT':
             async with aiofiles.open(values['TREE'][0], mode='w') as file:
                 await file.write(values['FILE_TEXT'])
 
-        if event == 'TREE':
+        elif event == 'TREE':
             if Path.is_file(Path(values['TREE'][0])) and (
                     values['TREE'][0].endswith('.json') or values['TREE'][0].endswith('.txt')):
                 window['OPEN_RESULT'].Update(disabled=False)
@@ -600,7 +593,7 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                 window['SAVE_RESULT'].Update(disabled=True)
                 window['MAKE_RESULT'].Update(disabled=True)
 
-        if event == 'RECORD':
+        elif event == 'RECORD':
             if params['do_record']:
                 window['RECORD'].Update('Record', button_color='green')
                 params['do_record'] = False
@@ -608,11 +601,11 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                 window['RECORD'].Update('Pause', button_color='red')
                 params['do_record'] = True
 
-        if event == 'CLEAR':
+        elif event == 'CLEAR':
             framelet_queue.put_nowait({'update': 1})
             window['GRAPH_IMAGE'].Update(data=make_figure(pd.DataFrame(process['data'])))
 
-        if event == 'SAVE_DATA':
+        elif event == 'SAVE_DATA':
             save_filename = Sg.tk.filedialog.asksaveasfilename(
                 defaultextension='txt',
                 filetypes=(("txt", "*.txt"), ("All Files", "*.*")),
@@ -627,7 +620,7 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                 except Exception as e:
                     Sg.PopupError(str(e), title='Error', non_blocking=True)
 
-        if event == 'SAVE_IMAGE':
+        elif event == 'SAVE_IMAGE':
             save_filename = Sg.tk.filedialog.asksaveasfilename(
                 defaultextension='png',
                 filetypes=(("png", "*.png"), ("All Files", "*.*")),
@@ -641,7 +634,11 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                 except Exception as e:
                     Sg.PopupError(str(e), title='Error', non_blocking=True)
 
-        await asyncio.sleep(0)
+        # Exit
+        elif event == "Exit" or event == Sg.WIN_CLOSED:
+            return
+
+        await asyncio.sleep(0.05)
 
 
 async def async_main():
@@ -684,8 +681,8 @@ async def async_main():
     # connect_task = loop.create_task(make_connect(window, request_queue, handshake_queue))
 
     # asyncio.run_coroutine_threadsafe(log_updater(loop), loop)
-    log_task = loop.create_task(log_updater())
-    # log_routine = await asyncio.to_thread(log_updater)
+    # log_task = loop.create_task(log_updater())
+    log_routine = await asyncio.to_thread(log_updater)
 
     update_data_routine = await asyncio.to_thread(update_data, framelet_queue, process['data'])
     # update_data_routine = loop.create_task(update_data(framelet_queue, process['data']))
@@ -704,7 +701,7 @@ async def async_main():
     #         tg.create_task(routine)
 
     await asyncio.gather(window_task, close_routine, connect_routine, handler_routine, semaphore_routine,
-                         processor_routine, log_task, update_data_routine)
+                         processor_routine, log_routine, update_data_routine)
     # await window_task
 
 
