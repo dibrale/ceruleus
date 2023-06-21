@@ -1,17 +1,20 @@
 import asyncio
 import concurrent.futures
+import datetime
 import os
 import typing
 from asyncio.subprocess import PIPE, STDOUT
 from pathlib import Path
+from tkinter import filedialog
 
 import websockets.client
 from websockets.legacy.client import WebSocketClientProtocol
 
 from modules.api import send_request, receive_data, client_handler
+from modules.logutils import make_now
 from modules.stringutils import check_nil
 from modules.uiutils import *
-from modules.plotutils import make_figure, pd, sample_frame, update_data, data_list
+from modules.plotutils import make_figure, pd, update_data, unassigned_template
 
 semaphore: dict[str, bool | None] = {
     'pause': None,
@@ -22,6 +25,7 @@ semaphore: dict[str, bool | None] = {
 server_params = {}
 llm_params = {}
 webui_params = {}
+process = {'data': [next(unassigned_template())]}
 log = {'lines': ['']}
 
 params: dict[str, typing.Any] = {
@@ -70,8 +74,7 @@ async def switch_semaphore(ui: Sg.Window, key: str, values: dict, send_queue: as
     send_queue.put_nowait({key[:-7].lower(): new_state})
 
 
-async def message_processor(receive_queue: asyncio.Queue, pong_queue: asyncio.Queue, report_queue: asyncio.Queue,
-                            updates: list):
+async def message_processor(receive_queue: asyncio.Queue, pong_queue: asyncio.Queue, report_queue: asyncio.Queue):
     while True:
         id_out = {}
         message = await receive_queue.get()
@@ -272,7 +275,8 @@ async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asynci
             params['make_connect'] = False
 
 
-async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue, handshake_queue: asyncio.Queue,
+async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
+                        handshake_queue: asyncio.Queue,
                         outcome_queue: asyncio.Queue, framelet_queue: asyncio.Queue, loop: AbstractEventLoop):
     while True:
         event, values = window.read(timeout=100)
@@ -291,10 +295,9 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                         request_queue.put_nowait({'query': 'semaphore'})
                         break
 
-                # print(pd.DataFrame(data_list))
                 if params['do_record']:
                     framelet_queue.put_nowait({'update': 0})
-                    window['GRAPH_IMAGE'].Update(data=make_figure(pd.DataFrame(data_list)))
+                    window['GRAPH_IMAGE'].Update(data=make_figure(pd.DataFrame(process['data'])))
             else:
                 for key in semaphore.keys():
                     semaphore[key] = None
@@ -578,6 +581,31 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                 window['RECORD'].Update('Pause', button_color='red')
                 params['do_record'] = True
 
+        if event == 'CLEAR':
+            framelet_queue.put_nowait({'update': 1})
+            window['GRAPH_IMAGE'].Update(data=make_figure(pd.DataFrame(process['data'])))
+
+        if event == 'SAVE_DATA':
+            save_filename = Sg.tk.filedialog.asksaveasfilename(
+                defaultextension='txt',
+                filetypes=(("txt", "*.txt"), ("All Files", "*.*")),
+                initialdir=os.getcwd(),
+                initialfile='ceruleus_' + str(datetime.datetime.now().timestamp()) + '.txt',
+                title="Save As"
+            )
+            async with aiofiles.open(save_filename, mode='w') as file:
+                await file.write(str(process['data']))
+
+        if event == 'SAVE_IMAGE':
+            save_filename = Sg.tk.filedialog.asksaveasfilename(
+                defaultextension='png',
+                filetypes=(("png", "*.png"), ("All Files", "*.*")),
+                initialdir=os.getcwd(),
+                initialfile='ceruleus_' + str(datetime.datetime.now().timestamp()) + '.png',
+                title="Save As"
+            )
+            make_figure(pd.DataFrame(process['data']), mode='write', path=save_filename)
+
         await asyncio.sleep(0)
 
 
@@ -589,12 +617,10 @@ async def async_main():
     handshake_queue = asyncio.Queue()
     outcome_queue = asyncio.Queue()
     framelet_queue = asyncio.Queue()
-    updates_list = []
 
     # processor_task = loop.create_task(message_processor(data_queue, pong_queue, updates_list))
     # asyncio.run_coroutine_threadsafe(message_processor(data_queue, handshake_queue, updates_list), loop)
-    processor_routine = await asyncio.to_thread(message_processor, data_queue, handshake_queue, framelet_queue,
-                                                updates_list)
+    processor_routine = await asyncio.to_thread(message_processor, data_queue, handshake_queue, framelet_queue)
 
     # handler_task = loop.create_task(client_handler_wrapper(
     #                   request_queue, data_queue, outcome_queue, send_request, receive_data, loop))
@@ -626,7 +652,8 @@ async def async_main():
     # log_task = loop.create_task(log_updater(loop))
     log_routine = await asyncio.to_thread(log_updater)
 
-    update_data_routine = await asyncio.to_thread(update_data, framelet_queue)
+    update_data_routine = await asyncio.to_thread(update_data, framelet_queue, process['data'])
+    # update_data_routine = loop.create_task(update_data(framelet_queue, process['data']))
 
     # await processor_task
 
@@ -715,13 +742,15 @@ if __name__ == "__main__":
                      ])],
             [Sg.Tab('Status', [
                 [Sg.Frame('Process History', [
-                    [Sg.Image(make_figure(sample_frame), key='GRAPH_IMAGE')]
-                ])],
+                    [Sg.Image(make_figure(pd.DataFrame(process['data'])), key='GRAPH_IMAGE', expand_x=True)]
+                ], expand_x=True)],
                 [Sg.Button(button_text="Record", key='RECORD', disabled=True, button_color='green',
-                           tooltip="Begin recording process history")] +
-                [Sg.Button(button_text="Save Data", key='SAVE_DATA', disabled=True,
+                           tooltip="Record or pause process history")] +
+                [Sg.Button(button_text="Clear", key='CLEAR',
+                           tooltip="Clear process history")] +
+                [Sg.Button(button_text="Save Data", key='SAVE_DATA',
                            tooltip="Save process history data")] +
-                [Sg.Button(button_text="Save Image", key='SAVE_IMAGE', disabled=True,
+                [Sg.Button(button_text="Save Image", key='SAVE_IMAGE',
                            tooltip="Save process history image")] +
                 [Sg.Push()]
             ])],

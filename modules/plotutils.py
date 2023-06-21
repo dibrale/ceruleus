@@ -15,46 +15,59 @@ sample_data = [
 
 sample_frame = pd.DataFrame(sample_data)
 
-unassigned_template = {
+
+def unassigned_template():
+    yield {
         'task': 'unassigned',
         'start': next(make_now()),
         'stop': next(make_now())
     }
 
-data_list = [unassigned_template]
+
+# initial_frame = pd.DataFrame([unassigned_template])
 
 
-def make_figure(data_frame: pd.DataFrame) -> bytes:
-    fig = px.timeline(data_frame, x_start="start", x_end="stop", y="task", color="task")
-    return fig.to_image()
+def make_figure(data_frame: pd.DataFrame, mode='return', path='') -> bytes:
+    fig = px.timeline(data_frame, x_start="start", x_end="stop", y="task", color="task", width=950, height=570, template='seaborn')
+    fig.update_yaxes(title={'text': ''}, overwrite=True)
+    # fig.update_xaxes(title={'text': 'Date and Time'}, overwrite=True)
+    fig.update_legends(title={'text': 'Subtasks'}, overwrite=True)
+    fig.update_layout(paper_bgcolor='lightsteelblue')
+    if mode == 'write':
+        fig.write_image(path, format=path.split('.')[-1])
+    return fig.to_image('png')
 
 
-async def update_data(queue: asyncio.Queue):
+async def update_data(queue: asyncio.Queue, data: list[dict]):
     while True:
         await asyncio.sleep(0)
         new_data = await queue.get()
         time_stop = datetime.now()
 
         if new_data == {'update': 0}:
-            data_list[-1].update({'stop': time_stop})
+            data[-1].update({'stop': time_stop})
+            continue
+        elif new_data == {'update': 1}:
+            data.clear()
+            data.append(next(unassigned_template()))
             continue
         await asyncio.sleep(0)
 
-        if 'start' in new_data.keys() and new_data['task'] != data_list[-1]['task']:
+        if 'start' in new_data.keys() and new_data['task'] != data[-1]['task']:
             time_start = datetime.fromtimestamp(new_data['start'])
             if 'stop' in new_data.keys():
                 time_stop = datetime.fromtimestamp(new_data['stop'])
             new_data.update({'start': time_start, 'stop': time_stop, 'task': new_data['task']})
-            data_list.append(new_data)
+            data.append(new_data)
             continue
         await asyncio.sleep(0)
 
         if 'stop' in new_data.keys():
 
-            if 'start' not in new_data.keys() and new_data['task'] == data_list[-1]['task']:
+            if 'start' not in new_data.keys() and new_data['task'] == data[-1]['task']:
                 time_stop = datetime.fromtimestamp(new_data['stop'])
-                data_list[-1].update({'stop': time_stop})
+                data[-1].update({'stop': time_stop})
 
-            data_list.append(unassigned_template)
+            data.append(next(unassigned_template()))
             await asyncio.sleep(0)
 
