@@ -191,7 +191,7 @@ def log_reload(values):
 
 async def log_updater():
     while 1:
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0)
         if params['live_update']:
             log['lines'] = await read_log_file(params['values']['LOG_PATH'])
             print('Read log file')
@@ -291,9 +291,10 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                         outcome_queue: asyncio.Queue, framelet_queue: asyncio.Queue, loop: AbstractEventLoop):
     while 1:
         # event, values = window.read(timeout=100)
-        event, values = window.read(timeout=50)
+        event, values = window.read(timeout=90)
         check_key = ''
         params['values'] = values
+        await asyncio.sleep(0.005)
 
         if event == '__TIMEOUT__':
 
@@ -638,7 +639,7 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
         elif event == "Exit" or event == Sg.WIN_CLOSED:
             return
 
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(0.005)
 
 
 async def async_main():
