@@ -24,12 +24,11 @@ def exists(var: Any) -> bool:
         return True
 
 
-@functools.lru_cache()
 async def flash(key, ui: Sg.Window, color_low='Black', color_high='Green', interval_low=0.5, interval_high=0.5):
     high_bg = functools.partial(ui[key].Update, background_color=color_high)
     low_bg = functools.partial(ui[key].Update, background_color=color_low)
     high_bg()
-    ui.refresh()
+    # ui.refresh()
     await asyncio.sleep(interval_low)
     low_bg()
     await asyncio.sleep(interval_high)

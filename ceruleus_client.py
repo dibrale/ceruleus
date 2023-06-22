@@ -1,7 +1,4 @@
-import asyncio
-import concurrent.futures
 import datetime
-import os
 import typing
 from asyncio.subprocess import PIPE, STDOUT
 from pathlib import Path
@@ -11,7 +8,6 @@ import websockets.client
 from websockets.legacy.client import WebSocketClientProtocol
 
 from modules.api import send_request, receive_data, client_handler
-from modules.logutils import make_now
 from modules.stringutils import check_nil
 from modules.uiutils import *
 from modules.plotutils import make_figure, pd, update_data, unassigned_template
@@ -57,7 +53,6 @@ tree = Sg.TreeData()
 
 async def semaphore_manager(signals: dict, ui: Sg.Window):
     while 1:
-        await asyncio.sleep(0)
         update_semaphore(signals, ui)
         for item in signals.keys():
             name = item.upper() + "_TOGGLE"
@@ -67,6 +62,7 @@ async def semaphore_manager(signals: dict, ui: Sg.Window):
                 ui[name].Update(value=0, disabled=False)
             else:
                 ui[name].Update(value=1, disabled=False)
+        await asyncio.sleep(0)
         # await refresh(ui)
 
 
@@ -74,11 +70,10 @@ def switch_semaphore(ui: Sg.Window, key: str, values: dict, send_queue: asyncio.
     new_state = not bool(values[key])
     ui[key].Update(disabled=True)
     semaphore.update({key[:-7].lower(): new_state})
-    # await refresh(ui)
     send_queue.put_nowait({key[:-7].lower(): new_state})
 
 
-async def message_processor(receive_queue: asyncio.Queue, pong_queue: asyncio.Queue, report_queue: asyncio.Queue):
+async def message_processor(receive_queue: asyncio.Queue, handshake_queue: asyncio.Queue, report_queue: asyncio.Queue):
     while 1:
         id_out = {}
         message = await receive_queue.get()
@@ -86,29 +81,29 @@ async def message_processor(receive_queue: asyncio.Queue, pong_queue: asyncio.Qu
         for key in message.keys():
             # print(f"Processing {key}")
             item = {key: message[key]}
-            if key == 'pong':
-                pong_queue.put_nowait(item)
-            elif key == 'script_name':
-                pong_queue.put_nowait(item)
+            if key == 'script_name':
+                handshake_queue.put_nowait(item)
             elif key in semaphore.keys():
                 window['STATUS'].Update('Got semaphore status')
                 semaphore.update(item)
             elif key == 'id':
                 id_out.update(item)
-            elif key == 'waiting' and not params['closing']:
-                window['STATUS'].Update(f"Waiting at {message[key]}")
-                try:
-                    asyncio.run_coroutine_threadsafe(flash(
-                        f"{item[key].upper()}_WAITING_LIGHT", window, color_high='yellow'), asyncio.get_running_loop())
-                except Exception as e:
-                    print(e)
-            elif key == 'going' and not params['closing']:
-                window['STATUS'].Update(f"Resuming at {message[key]}")
-                try:
-                    asyncio.run_coroutine_threadsafe(flash(
-                        f"{item[key].upper()}_WAITING_LIGHT", window, color_high='green'), asyncio.get_running_loop())
-                except Exception as e:
-                    print(e)
+            elif not (params['closing'] or params['make_connect']):
+                if key == 'waiting':
+                    window['STATUS'].Update(f"Waiting at {message[key]}")
+                    try:
+                        asyncio.run_coroutine_threadsafe(flash(
+                            f"{item[key].upper()}_WAITING_LIGHT", window, color_high='yellow'), asyncio.get_running_loop())
+                    except Exception as e:
+                        print(e)
+                elif key == 'going':
+                    window['STATUS'].Update(f"Resuming at {message[key]}")
+                    try:
+                        asyncio.run_coroutine_threadsafe(flash(
+                            f"{item[key].upper()}_WAITING_LIGHT", window, color_high='green'), asyncio.get_running_loop())
+                    except Exception as e:
+                        print(e)
+
         if id_out and params['do_record']:
             data_framelet = {'task': message['id']}
 
@@ -130,15 +125,13 @@ async def message_processor(receive_queue: asyncio.Queue, pong_queue: asyncio.Qu
         # await asyncio.sleep(0)
 
 
-async def close_connection(text_queue: asyncio.Queue, send_queue: asyncio.Queue, receive_queue: asyncio.Queue):
+async def close_connection(close_message_queue: asyncio.Queue, send_queue: asyncio.Queue, receive_queue: asyncio.Queue):
     while 1:
         await asyncio.sleep(0)
-        text = await text_queue.get()
+        text = await close_message_queue.get()
         params['closing'] = True
         window['STATUS'].Update('Closing connection')
         send_queue.put_nowait({'close': None})
-        # await asyncio.sleep(0.5)
-        # await send_queue.put({'dummy': None})
 
         while not send_queue.empty():
             await asyncio.sleep(0)
@@ -194,9 +187,9 @@ async def log_updater():
         await asyncio.sleep(0)
         if params['live_update']:
             log['lines'] = await read_log_file(params['values']['LOG_PATH'])
-            print('Read log file')
+            # print('Read log file')
             log_reload(params['values'])
-            print('Reloaded log lines')
+            # print('Reloaded log lines')
 
 
 async def client_handler_wrapper(
@@ -205,59 +198,36 @@ async def client_handler_wrapper(
         outcome_queue: asyncio.Queue,
         tx_fcn: (WebSocketClientProtocol, asyncio.Queue),
         rx_fcn: (WebSocketClientProtocol, asyncio.Queue),
-        loop: asyncio.AbstractEventLoop
 ):
-    # async def queued_handler():
-    #     await handler(params['socket'], send_queue, receive_queue, tx_fcn, rx_fcn, outcome_queue)
 
     while 1:
-
-        # handler_task = loop.create_task(queued_handler())
-
+        await asyncio.sleep(0)
         if not params['stop_exchange']:
-            # print(f"Awaiting handler for {str(params['socket'])}")
             handler_routine = await asyncio.to_thread(client_handler, params['socket'], send_queue, receive_queue,
                                                       tx_fcn, rx_fcn, outcome_queue)
-            # await handler(params['socket'], send_queue, receive_queue, tx_fcn, rx_fcn, outcome_queue)
             await handler_routine
-            # await queued_handler()
-            # await handler_task
-            # print('Handler done')
-
-        await asyncio.sleep(0)
 
 
-@functools.lru_cache(maxsize=1024)
-async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asyncio.Queue, attempts=3):
+async def make_connect(out_queue: asyncio.Queue, hi_queue: asyncio.Queue, attempts=3):
     attempt = 0
     while 1:
         await asyncio.sleep(0)
 
         if params['make_connect']:
-            # values = params['values']
             attempt += 1
-            # print('Connecting')
             params.update({'host': str(params['values']['HOST']), 'port': str(params['values']['PORT'])})
             params.update({'uri': f"ws://{params['host']}:{params['port']}"})
             params.update({'socket': websockets.client.connect(params['uri'])})
 
-            # await asyncio.sleep(0)
-            # asyncio.run_coroutine_threadsafe(client_handler_wrapper(
-            #     request_queue, data_queue, outcome_queue, send_request, receive_data, loop), loop)
             window['STATUS'].Update(f"Connecting to {params['uri']}...")
             window['CONNECT'].Update(disabled=True)
             window['CONNECTION_LIGHT'].Update(background_color='Yellow')
             window['RECORD'].Update('Record', button_color='green', disabled=True)
             params['do_record'] = False
-            # await refresh(ui)
 
-            # out_queue.put_nowait({'echo': 'client_connecting'})
             out_queue.put_nowait({'query': 'id'})
             params.update({'stop_exchange': False})
-            # await asyncio.sleep(0.1)
             window['STATUS'].Update(f"Sending request to {params['host']}:{params['port']}...")
-            # await refresh(ui)
-            # await asyncio.sleep(0)
 
             try:
                 reply = await asyncio.wait_for(hi_queue.get(), 3)
@@ -279,9 +249,6 @@ async def make_connect(ui: Sg.Window, out_queue: asyncio.Queue, hi_queue: asynci
                 window['RECORD'].Update(disabled=False)
                 attempt = 0
 
-                # await refresh(ui)
-                # await asyncio.sleep(0.1)
-                #  await out_queue.put({'query': 'semaphore'})
             params['make_connect'] = False
             params['semaphore_tick'] = 0
 
@@ -535,8 +502,6 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
         elif event == 'LIVE_UPDATE':
             params['live_update'] = values['LIVE_UPDATE']
 
-        # await asyncio.sleep(0)
-
         elif str(event).endswith('FILTER'):
             if not values['FILTER'] and not values['IGNORE_FILTER']:
                 window['APPLY_FILTER'].Update(disabled=True)
@@ -643,7 +608,6 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
 
 
 async def async_main():
-    # window.refresh()
     loop = asyncio.get_event_loop()
     request_queue = asyncio.Queue()
     data_queue = asyncio.Queue()
@@ -660,7 +624,7 @@ async def async_main():
     # asyncio.run_coroutine_threadsafe(client_handler_wrapper(
     #                   request_queue, data_queue, outcome_queue, send_request, receive_data, loop), loop)
     handler_routine = await asyncio.to_thread(client_handler_wrapper, request_queue, data_queue, outcome_queue,
-                                              send_request, receive_data, loop)
+                                              send_request, receive_data)
 
     # close_task = loop.create_task(close_connection(outcome_queue, request_queue, data_queue))
     # asyncio.run_coroutine_threadsafe(close_connection(outcome_queue, request_queue, data_queue), loop)
@@ -678,7 +642,7 @@ async def async_main():
     # await asyncio.gather(ping_task, close_task, semaphore_task)
 
     # asyncio.run_coroutine_threadsafe(make_connect(window, request_queue, handshake_queue), loop)
-    connect_routine = await asyncio.to_thread(make_connect, window, request_queue, handshake_queue, 3)
+    connect_routine = await asyncio.to_thread(make_connect, request_queue, handshake_queue, 3)
     # connect_task = loop.create_task(make_connect(window, request_queue, handshake_queue))
 
     # asyncio.run_coroutine_threadsafe(log_updater(loop), loop)
@@ -838,7 +802,6 @@ if __name__ == "__main__":
                         [Sg.Multiline('', size=(82, 40), key='FILE_TEXT', expand_x=True, expand_y=True)]
                     ])]
         ], key='TABS')],
-        # [Sg.HSeparator()],
         [Sg.StatusBar('\t\t\t\t\t\t\t\t\t', key='STATUS'), indicator('CONNECTION_LIGHT', color='Black')[0]],
     ]
 
