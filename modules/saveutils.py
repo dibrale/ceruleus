@@ -118,11 +118,14 @@ async def parse_save_speech(input_string: str):
         print_v("No new speech", params['verbose'])
         return
 
+    # Strip introductory script-like phrases with the character name
+    speech = re.search(r"({name})*\s*([sS]ays)*\W*\s*(?P<SPEECH>(.*?)$)".format(name=attributes['char_name']), speech)
+
     # Load chat history
     convo_data_full = await load_json_data(path['char_log'])
 
     # Process speech text and escape in case of duplication
-    if convo_data_full['data'][-1][-1] == speech or convo_data_full['data_visible'][-1][-1] == speech:
+    if convo_data_full['data'][-1][-1].strip().lower() == speech.strip().lower() or convo_data_full['data_visible'][-1][-1].strip().lower() == speech.strip().lower():
         print_v("Duplicate speech suppressed", params['verbose'])
         return
 
