@@ -1,9 +1,11 @@
 import datetime
+import tkinter
 import typing
 from asyncio.subprocess import PIPE, STDOUT
 from pathlib import Path
 from tkinter import filedialog
 
+import PySimpleGUI
 import websockets.client
 from websockets.legacy.client import WebSocketClientProtocol
 
@@ -18,6 +20,7 @@ semaphore: dict[str, bool | None] = {
     'squire': None
 }
 
+tree = {'tree': ''}
 server_params = {}
 llm_params = {}
 webui_params = {}
@@ -45,10 +48,18 @@ params: dict[str, typing.Any] = {
     'do_log_update': False,
     'do_record': False,
     'closing': False,
-    'live_update': False
+    'live_update': False,
+    'right_click_element': None
 }
 
-tree = Sg.TreeData()
+right_click_menu = ['', ['Copy', 'Paste', 'Select All', 'Cut']]
+
+
+def make_right_click(event, menu=None):
+    if menu is None:
+        menu = right_click_menu
+    params['right_click_element'] = event
+    return menu
 
 
 async def semaphore_manager(signals: dict, ui: Sg.Window):
@@ -253,6 +264,32 @@ async def make_connect(out_queue: asyncio.Queue, hi_queue: asyncio.Queue, attemp
             params['semaphore_tick'] = 0
 
 
+def do_clipboard_operation(event, element):
+
+    if event == 'Select All':
+        element.Widget.selection_clear()
+        element.Widget.tag_add('sel', '1.0', 'end')
+    elif event == 'Copy':
+        try:
+            text = element.Widget.selection_get()
+            window.TKroot.clipboard_clear()
+            window.TKroot.clipboard_append(text)
+        except Exception as e:
+            print(e)
+            print('Nothing selected')
+    elif event == 'Paste':
+        element.Widget.insert(Sg.tk.INSERT, window.TKroot.clipboard_get())
+    elif event == 'Cut':
+        try:
+            text = element.Widget.selection_get()
+            window.TKroot.clipboard_clear()
+            window.TKroot.clipboard_append(text)
+            element.update('')
+        except Exception as e:
+            print(e)
+            print('Nothing selected')
+
+
 async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
                         handshake_queue: asyncio.Queue,
                         outcome_queue: asyncio.Queue, framelet_queue: asyncio.Queue, loop: AbstractEventLoop):
@@ -262,6 +299,9 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
         check_key = ''
         params['values'] = values
         await asyncio.sleep(0.01)
+
+        if event in right_click_menu[1]:
+            do_clipboard_operation(event, window.find_element_with_focus())
 
         if event == '__TIMEOUT__':
 
@@ -544,6 +584,8 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
         elif event == 'SAVE_RESULT':
             async with aiofiles.open(values['TREE'][0], mode='w') as file:
                 await file.write(values['FILE_TEXT'])
+            tree['tree'] = make_tree()
+            window['TREE'].Update(tree['tree'])
 
         elif event == 'TREE':
             if Path.is_file(Path(values['TREE'][0])) and (
@@ -603,6 +645,8 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
         # Exit
         elif event == "Exit" or event == Sg.WIN_CLOSED:
             return
+
+        params.update({'previous_event': event})
 
         await asyncio.sleep(0.01)
 
@@ -672,14 +716,18 @@ async def async_main():
 
 # The GUI elements are all declared in synchronous main(), since they only need to be declared once
 if __name__ == "__main__":
+    # List directory contents
+    tree.update({'tree': make_tree()})
+    # add_files_in_folder('squire_output', tree)
+
     layout = [
         [Sg.TabGroup([
             [Sg.Tab('Controls',
                     [space(),
                      [
                          Sg.Frame('Connection', [
-                             input_field('Host', 'localhost', length=15),
-                             input_field('Port', '1230', length=5),
+                             input_field('Host', 'localhost', length=15, right_click_menu=right_click_menu),
+                             input_field('Port', '1230', length=5, right_click_menu=right_click_menu),
                              space(),
                              [Sg.Button(button_text="Connect", key='CONNECT',
                                         tooltip="Connect to a running Ceruleus instance")] +
@@ -696,7 +744,7 @@ if __name__ == "__main__":
                          Sg.Frame('Squire', [
                              [Sg.Text('Path to Squire output')],
                              [Sg.Input(size=(25, 1), default_text='squire_output/out.txt', key='SQUIRE_OUT_PATH',
-                                       enable_events=True)],
+                                       enable_events=True, right_click_menu=right_click_menu)],
                              [Sg.FileBrowse(key='SQUIRE_OUT_BROWSE',
                                             file_types=[("Text Files", '*.txt'), ("All Files", '.*')],
                                             initial_folder=os.getcwd(),
@@ -711,7 +759,7 @@ if __name__ == "__main__":
                      [
                          Sg.Text('Path to parameter file'),
                          Sg.Input(size=(25, 1), default_text='params.json', key='PARAMS_PATH',
-                                  enable_events=True),
+                                  enable_events=True, right_click_menu=right_click_menu),
                          Sg.FileBrowse(key='PARAMS_BROWSE',
                                        file_types=[("JSON Files", '*.json'), ("All Files", '.*')],
                                        initial_folder=os.getcwd(),
@@ -731,7 +779,8 @@ if __name__ == "__main__":
                          [Sg.Radio('LLM', 'PARAM_RADIO', key='LLM', enable_events=True)] +
                          [Sg.Radio('Webui', 'PARAM_RADIO', key='WEBUI', enable_events=True)] + [
                              Sg.Push()],
-                         input_field('Parameter', length=30) + input_field('Value', length=60) +
+                         input_field('Parameter', length=30, right_click_menu=right_click_menu) +
+                         input_field('Value', length=60, right_click_menu=right_click_menu) +
                          [Sg.Button(button_text="Modify", key='PARAMS_MODIFY', disabled=True,
                                     tooltip="Add or modify parameter and associated value")] +
                          [Sg.Button(button_text="Delete", key='PARAMS_DELETE', disabled=True,
@@ -759,17 +808,17 @@ if __name__ == "__main__":
             ])],
             [Sg.Tab('Log',
                     [space(),
-                     input_field('Log file path', key='LOG_PATH') +
+                     input_field('Log file path', key='LOG_PATH', right_click_menu=right_click_menu) +
                      [Sg.FileBrowse(key='LOG_BROWSE',
                                     file_types=[("LOG Files", '*.log'), ('Text Files', '*.txt'),
                                                 ("All Files", '.*')],
                                     initial_folder=os.getcwd(), tooltip="Browse for a log file")] +
                      [Sg.Button(button_text="Load", key='LOG_LOAD', disabled=True,
                                 tooltip="Load the log file at the selected path"), checkmark('LOG_CHECK')],
-                     [Sg.Multiline(pad=(10, 10), key='LOG', size=(130, 30), autoscroll=True, expand_x=True, expand_y=True)],
+                     [Sg.Multiline(pad=(10, 10), key='LOG', size=(130, 30), autoscroll=True, expand_x=True, expand_y=True, right_click_menu=right_click_menu, disabled=True)],
                      [Sg.Frame('Log Filters', [
                          input_field('Include item', key='FILTER') + input_field('Ignore list',
-                                                                                 key='IGNORE_FILTER', length=88),
+                                                                                 key='IGNORE_FILTER', length=88, right_click_menu=right_click_menu),
                          [Sg.Checkbox('Live Update', key='LIVE_UPDATE', disabled=True, enable_events=True)] +
                          [Sg.Checkbox('Remove Filtered Text', key='DEL_FILTER', enable_events=True)] +
                          [Sg.Button(button_text="Apply", key='APPLY_FILTER', disabled=True,
@@ -781,7 +830,7 @@ if __name__ == "__main__":
             [Sg.Tab('Results',
                     [
                         [Sg.Column([
-                            [Sg.Tree(data=tree,
+                            [Sg.Tree(data=tree['tree'],
                                      headings=['Size', ],
                                      # select_mode=Sg.TABLE_SELECT_MODE_EXTENDED,
                                      num_rows=36,
@@ -790,6 +839,7 @@ if __name__ == "__main__":
                                      enable_events=True,
                                      expand_x=True,
                                      expand_y=True,
+                                     show_expanded=True
                                      )],
                             [Sg.Button(button_text="Open", key='OPEN_RESULT', disabled=True,
                                        tooltip="Open a result or template file as text for editing")] +
@@ -799,17 +849,11 @@ if __name__ == "__main__":
                                        tooltip="Save to the selected file")]
                         ])]
                         +
-                        [Sg.Multiline('', size=(82, 40), key='FILE_TEXT', expand_x=True, expand_y=True)]
+                        [Sg.Multiline('', size=(82, 40), key='FILE_TEXT', expand_x=True, expand_y=True, right_click_menu=right_click_menu)]
                     ])]
         ], key='TABS')],
         [Sg.StatusBar('\t\t\t\t\t\t\t\t\t', key='STATUS'), indicator('CONNECTION_LIGHT', color='Black')[0]],
     ]
-
-    # List directory contents
-    add_files_in_folder('results', tree)
-    # add_files_in_folder('squire_output', tree)
-    add_files_in_folder('templates', tree)
-    add_files_in_folder('work', tree)
 
     # Declare the GUI window
     window = Sg.Window("Ceruleus Client", layout, resizable=True, finalize=True)

@@ -34,10 +34,10 @@ async def flash(key, ui: Sg.Window, color_low='Black', color_high='Green', inter
     await asyncio.sleep(interval_high)
 
 
-def input_field(label='', default='', key='', length=20) -> list[Sg.Element]:
+def input_field(label='', default='', key='', length=20, right_click_menu=None) -> list[Sg.Element]:
     if key == '':
         key = label.upper()
-    return [Sg.Text(label), Sg.Input(size=(length, 1), default_text=default, key=key, enable_events=True)]
+    return [Sg.Text(label), Sg.Input(size=(length, 1), default_text=default, key=key, enable_events=True, right_click_menu=right_click_menu)]
 
 
 def space() -> list[Sg.Element]:
@@ -151,6 +151,17 @@ def add_files_in_folder(dir_name, tree: Sg.TreeData):
             tree.Insert(parent, fullname, f, values=[os.stat(fullname).st_size], icon=file_icon)
 
 
+def make_tree(folders=None) -> Sg.TreeData:
+    new_tree = Sg.TreeData()
+    if folders is None:
+        folders = ['results', 'templates', 'work']
+
+    for folder in folders:
+        add_files_in_folder(folder, new_tree)
+
+    return new_tree
+
+
 @functools.lru_cache()
 def make_blank(path: str) -> str:
     split_path = re.split(r'[.\\/]', path)
@@ -158,10 +169,6 @@ def make_blank(path: str) -> str:
 
     if split_path[0] == 'results' or split_path[0] == 'work':
         word = split_path[-2].split('_')[0]
-        print('Word: ' + word)
+        # print('Word: ' + word)
         template = '{\n' + '    "{word}": []'.format(word=word) + '\n}'
     return template
-
-
-def process_logline(line: str) -> str:
-    out = ''
