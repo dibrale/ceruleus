@@ -260,8 +260,8 @@ async def check_goals(
             if write_crumbs:
                 await send_update('goal_met')
                 await write_crumb(
-                    f"{goal}. Summary of my thoughts just before meeting this goal: {list_or_str_to_str(thoughts)}",
-                    prefix=f"A goal has been met: ")
+                    f"{goal}. There were some thoughts I had about this. {list_or_str_to_str(thoughts)}",
+                    prefix=f"I was able to do something that I wanted to - ")
         else:
             goals_unmet.append(goal)
 
@@ -281,8 +281,9 @@ async def check_answered(answers: str | list[str], llm: any) -> [str, bool]:
     answered = await is_answered(question, answer, llm)
 
     if answered:
-        crumb_string = f"A question has been answered. "
-        crumb_task = write_crumb(f"\nQuestion: {question}\nAnswer: {answer}", prefix=crumb_string)
+        crumb_task = write_crumb(
+            f"I also thought of answer to the question I asked. {answer}",
+            prefix=f"I asked myself a question. {question}")
         clear_answers_task = write_json_data({'answers': []}, path['answers'])
         await asyncio.gather(crumb_task, clear_answers_task)
     return [question, answered]

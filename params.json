@@ -13,6 +13,7 @@
     "squire_path": "squire",
     "squire_out_dir": "squire_output",
     "model_path": "ggmlv3_model_q5_1.bin",
+    "thoughts_to_convo": true,
     "telesend": false,
     "retry_delay": 10,
     "ping_interval": 15,

@@ -170,7 +170,7 @@ async def appraise(answered: bool, answer_attempts: int, answers_synth: str, tho
             new_goals_list['goals'].append(goal)
 
             # Prepare goal prefix for chat history, then load chat history and write to it
-            await write_crumb(goal, prefix=f"{attributes['char_name']} has a goal: ")
+            # await write_crumb(goal, prefix=f"{attributes['char_name']} has a goal: ")
 
         write_goals_task = write_json_data(new_goals_list, path['goals'])
         write_persistent_task = append_json_data(new_goals_list['goals'], 'goals', path['goals_persistent'])
@@ -192,7 +192,9 @@ async def appraise(answered: bool, answer_attempts: int, answers_synth: str, tho
 
             await send_update('goal_failed')
             failed_goals_task = write_json_data(failed_goals_list, path['goals_failed'])
-            crumb_task = write_crumb(goals_sum, f"{attributes['char_name']} failed to reach a goal: ")
+            crumb_task = write_crumb(
+                goals_sum,
+                prefix=f"I wasn't successful in doing something I wanted to do. The goal I had in mind - ")
             reset_task = reset(loop)
             await asyncio.gather(reset_task, crumb_task, failed_goals_task)
 
@@ -204,7 +206,7 @@ async def appraise(answered: bool, answer_attempts: int, answers_synth: str, tho
             )
 
             goal_task = append_json_data(goal, 'goals', path['goals'])
-            crumb_task = write_crumb(goal, prefix=f"{attributes['char_name']} has a goal: ")
+            crumb_task = write_crumb(goal, prefix=f"I thought of something I would like to do. ")
             persistent_task = append_json_data(goal, 'goals', path['goals_persistent'])
             await asyncio.gather(goal_task, crumb_task, persistent_task)
 

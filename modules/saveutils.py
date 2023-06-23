@@ -79,7 +79,9 @@ async def parse_save_goal(input_string: str, loop: AbstractEventLoop):
         append_result_task = loop.create_task(append_json_data(goals_data['goals'], 'goals', path['goals_persistent']))
 
         # Prepare goal prefix for chat history, then load chat history and write to it
-        write_crumb_task = write_crumb(goal, prefix=f"{attributes['char_name']} has a goal: ")
+        write_crumb_task = write_crumb(
+            goal,
+            prefix=f"I thought of something I would like to do. ")
 
         await asyncio.gather(write_work_task, append_result_task, write_crumb_task)
     finally:
@@ -141,9 +143,10 @@ async def parse_save_speech(input_string: str):
 
 # Write crumbs of knowledge to the conversation log
 async def write_crumb(crumb: str, prefix='I gained some new knowledge: '):
-    convo_data_full = await load_json_data(params['char_log_path'])
-    convo_data_full['data'].append(['', prefix + crumb])
-    if params['telesend']:
-        convo_data_full['data_visible'].append(['', prefix + crumb])
-    await write_json_data(convo_data_full, params['char_log_path'])
+    if params['thoughts_to_convo']:
+        convo_data_full = await load_json_data(params['char_log_path'])
+        convo_data_full['data'].append(['', prefix + crumb])
+        if params['telesend']:
+            convo_data_full['data_visible'].append(['', prefix + crumb])
+        await write_json_data(convo_data_full, params['char_log_path'])
     return
