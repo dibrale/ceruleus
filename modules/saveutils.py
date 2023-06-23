@@ -119,7 +119,8 @@ async def parse_save_speech(input_string: str):
         return
 
     # Strip introductory script-like phrases with the character name
-    speech = re.search(r"({name})*\s*([sS]ays)*\W*\s*(?P<SPEECH>(.*?)$)".format(name=attributes['char_name']), speech)
+    result = re.search(r"({name})*\s*([sS]ays)*\W*\s*(?P<SPEECH>(.*?)$)".format(name=attributes['char_name']), speech)
+    speech = result.group('SPEECH')
 
     # Load chat history
     convo_data_full = await load_json_data(path['char_log'])
