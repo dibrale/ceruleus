@@ -282,7 +282,7 @@ async def check_answered(answers: str | list[str], llm: any) -> [str, bool]:
 
     if answered:
         crumb_task = write_crumb(
-            f"I also thought of answer to the question I asked. {answer}",
+            f"I also thought of an answer to the question I asked. {answer}",
             prefix=f"I asked myself a question. {question}")
         clear_answers_task = write_json_data({'answers': []}, path['answers'])
         await asyncio.gather(crumb_task, clear_answers_task)
