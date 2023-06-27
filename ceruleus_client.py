@@ -722,38 +722,6 @@ if __name__ == "__main__":
 
     layout = [
         [Sg.TabGroup([
-            [Sg.Tab('Controls',
-                    [space(),
-                     [
-                         Sg.Frame('Connection', [
-                             input_field('Host', 'localhost', length=15, right_click_menu=right_click_menu),
-                             input_field('Port', '1230', length=5, right_click_menu=right_click_menu),
-                             space(),
-                             [Sg.Button(button_text="Connect", key='CONNECT',
-                                        tooltip="Connect to a running Ceruleus instance")] +
-                             [Sg.Button(button_text="Disconnect", key='DISCONNECT', disabled=True,
-                                        tooltip="Disconnect from a running Ceruleus instance")],
-                         ]),
-                         Sg.Frame('Semaphore', [
-                             toggle('webui',
-                                    tooltip="Wait just before accessing text-generation-webui API"),
-                             toggle('squire', tooltip="Wait just before launching Squire"),
-                             toggle('pause', tooltip="Safely pause Ceruleus"),
-                             space()
-                         ]),
-                         Sg.Frame('Squire', [
-                             [Sg.Text('Path to Squire output')],
-                             [Sg.Input(size=(25, 1), default_text='squire_output/out.txt', key='SQUIRE_OUT_PATH',
-                                       enable_events=True, right_click_menu=right_click_menu)],
-                             [Sg.FileBrowse(key='SQUIRE_OUT_BROWSE',
-                                            file_types=[("Text Files", '*.txt'), ("All Files", '.*')],
-                                            initial_folder=os.getcwd(),
-                                            tooltip="Browse for a Squire output file",
-                                            target=(-1, 0)),
-                              Sg.Button(button_text="Touch", key='TOUCH',
-                                        tooltip="Touch the squire output file to begin execution")], space()
-                         ])],
-                     ])],
             [Sg.Tab('Parameters',
                     [space(),
                      [
@@ -791,6 +759,38 @@ if __name__ == "__main__":
                                 tooltip="Save the parameter file to the selected path"),
                       checkmark('SAVE_CHECK')],
 
+                     ])],
+            [Sg.Tab('Controls',
+                    [space(),
+                     [
+                         Sg.Frame('Connection', [
+                             input_field('Host', 'localhost', length=15, right_click_menu=right_click_menu),
+                             input_field('Port', '1230', length=5, right_click_menu=right_click_menu),
+                             space(),
+                             [Sg.Button(button_text="Connect", key='CONNECT',
+                                        tooltip="Connect to a running Ceruleus instance")] +
+                             [Sg.Button(button_text="Disconnect", key='DISCONNECT', disabled=True,
+                                        tooltip="Disconnect from a running Ceruleus instance")],
+                         ]),
+                         Sg.Frame('Semaphore', [
+                             toggle('webui',
+                                    tooltip="Wait just before accessing text-generation-webui API"),
+                             toggle('squire', tooltip="Wait just before launching Squire"),
+                             toggle('pause', tooltip="Safely pause Ceruleus"),
+                             space()
+                         ]),
+                         Sg.Frame('Squire', [
+                             [Sg.Text('Path to Squire output')],
+                             [Sg.Input(size=(25, 1), default_text='squire_output/out.txt', key='SQUIRE_OUT_PATH',
+                                       enable_events=True, right_click_menu=right_click_menu)],
+                             [Sg.FileBrowse(key='SQUIRE_OUT_BROWSE',
+                                            file_types=[("Text Files", '*.txt'), ("All Files", '.*')],
+                                            initial_folder=os.getcwd(),
+                                            tooltip="Browse for a Squire output file",
+                                            target=(-1, 0)),
+                              Sg.Button(button_text="Touch", key='TOUCH',
+                                        tooltip="Touch the squire output file to begin execution")], space()
+                         ])],
                      ])],
             [Sg.Tab('Status', [
                 [Sg.Frame('Process History', [
