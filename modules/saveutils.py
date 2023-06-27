@@ -4,6 +4,8 @@ from modules.rwutils import *
 from modules.config import *
 import re
 
+from modules.stringutils import clean_speech_str
+
 
 # Parse thoughts from an arbitrary string and save them to the thoughts JSON, optionally also to the persistent dialogue
 async def parse_save_thought(input_string: str, loop: AbstractEventLoop):
@@ -120,9 +122,9 @@ async def parse_save_speech(input_string: str):
         print_v("No new speech", params['verbose'])
         return
 
-    # Strip introductory script-like phrases with the character name
-    result = re.search(r"({name})*\s*([sS]ays)*\W*\s*(?P<SPEECH>(.*?)$)".format(name=attributes['char_name']), speech)
-    speech = result.group('SPEECH')
+    speech = clean_speech_str(speech)
+    if not speech:
+        return
 
     # Load chat history
     convo_data_full = await load_json_data(path['char_log'])

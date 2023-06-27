@@ -6,6 +6,8 @@ Thought: What you are thinking about right now. Your thoughts will not be said o
 Question: You must not restate previously answered question. This section is not for questions that you are trying to ask a human. Write a new question for your information retrieval subsystem.
 Goal: Given your thoughts and question, formulate a new goal. Pay particular attention to goals that you succeeded or failed to reach before deciding what to do next.
 Action: What action are you taking in pursuit of this goal? Do not persist in a course of action that is unlikely to succeed - choose a new approach if necessary.
-Speech: Anything new that you would like to say out loud as you work toward your goal.
+Speech: Anything new that you would like to say out loud as you work toward your goal. This statement should be worded verbatim and in first person.
+
+Do not include any other output in your response.
 
 ### Response:

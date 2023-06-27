@@ -159,3 +159,36 @@ def check_nil(query: str | list | dict) -> bool:
             return False
 
     return True
+
+
+def clean_speech_str(speech: str) -> str:
+    if attributes['char_name']:
+        name = attributes['char_name']
+    else:
+        return ''
+
+    # Fix stray quotes, tendency for output to include '<character> thinks:' and third person of the verb 'to be'
+    speech = re.sub("\"", "", speech)
+    speech = re.sub("{name} thinks: ".format(name=name), "", speech)
+    speech = re.sub("{name} is".format(name=name), "I am", speech)
+
+    # Strip introductory script-like phrases with the character name
+    speech = re.search(r"({name})*\s*([sS]ays)*\W*\s*(?P<SPEECH>(.*?)$)".format(name=name), speech).group('SPEECH')
+
+    # Remove any text that follows a '#'
+    speech = speech.split('#')[0]
+
+    # Same thing if we encounter two non-alphanumerics in a row
+    p = re.compile(r"([^ \t\n\r\f\va-zA-Z0-9_])[^ \t\n\r\f\va-zA-Z0-9_]")
+    speech = p.split(speech)[0].strip()
+    if not speech[-1] in ['.', '!', '?']:
+        speech = ''.join([speech, '.'])
+
+    # At this point, text after a colon-delimited statement is likely non-contributory. Remove it.
+    speech = speech.split(':')[0]
+
+    # Perform final removal of incomplete trailing sentences
+    speech = re.search(r"(?P<SPEECH>((.*?)[.!?])*).*$", speech).group('SPEECH')
+    speech = re.findall(r".*[.!?*~]", speech)[0]
+
+    return speech
