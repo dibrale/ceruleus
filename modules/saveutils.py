@@ -94,8 +94,7 @@ async def parse_save_goal(input_string: str, loop: AbstractEventLoop):
 async def parse_save_speech(input_string: str):
     # Extract the text after 'Speech: '
     result = re.search(
-        r"(Speech|{name})\s*\d*\s*:\s*\d*\s*({name}\s*\d*\s*:\s*\d*\s*)*(?P<SPEECH>(.*?)$)"
-        .format(name=attributes['char_name']), input_string)
+        r"((Speech|{name})\s*\d*\s*:\s*\d*\s*)(?P<SPEECH>.*)".format(name=attributes['char_name']), input_string)
 
     try:
         speech = result.group('SPEECH')
