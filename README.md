@@ -44,31 +44,32 @@ The Ceruleus back-end can be monitored live and easily interrogated using a GUI.
 ## Installation
 
 **1.** Clone this repository and navigate into its directory. i.e.: 
-    ```
+    
     git clone https://github.com/dibrale/ceruleus.git
     cd ceruleus
-    ```
+    
 **2.** Install dependencies, i.e. using 
-   ```
-   pip install -r requirements.txt
-   ```
+    
+    pip install -r requirements.txt
+    
 **3.** Clone [Squire](https://github.com/dibrale/squire), i.e. using 
 
-   ```
-   git clone https://github.com/dibrale/squire.git
-   ```
+    
+    git clone https://github.com/dibrale/squire.git
+    
 **4.** Install Squire dependencies, i.e. using 
 
-    ```
+    
     pip install -r squire/requirements.txt
-    ```
+    
 **5.** Back up your character chat log, i.e. 
 
-    ```
+    
     mkdir backups
     cp text-generation-webui/logs/<character_name>_persistent.json backups/<character_name>_persistent.json.bak
-    ```
-    Ceruleus edits the chat log directly when it runs.
+    
+    
+Ceruleus edits the chat log directly when it runs.
 
 <hr>
 
