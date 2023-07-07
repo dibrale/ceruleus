@@ -569,8 +569,13 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
             log_reload(values)
 
         elif event == 'TOUCH':
-            touch = await asyncio.create_subprocess_shell(f"touch {values['SQUIRE_OUT_PATH']}", stdin=PIPE, stdout=PIPE,
-                                                          stderr=STDOUT)
+            if os.name == 'nt':
+                touch = await asyncio.create_subprocess_shell(
+                    f"(Get-Item \"{values['SQUIRE_OUT_PATH']}\").LastWriteTime=$(Get-Date -format o)",
+                    stdin=PIPE, stdout=PIPE, stderr=STDOUT)
+            else:
+                touch = await asyncio.create_subprocess_shell(f"touch {values['SQUIRE_OUT_PATH']}", stdin=PIPE, stdout=PIPE,
+                                                              stderr=STDOUT)
             await touch.wait()
 
         elif event == 'OPEN_RESULT':
