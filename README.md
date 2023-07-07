@@ -5,7 +5,7 @@ Let chat agents set their own goals and take initiative in conversation.
 
 ## Description
 
-Ceruleus provides a back-end 'internal monologue' for chat agents by implementing flexible loops of goal setting, question formulation, information retrieval and appraisal with natural points for optional user intervention. Information retrieval and summarization is implemented using [Squire](https://github.com/dibrale/squire), while the primary user interaction occurs via oobabooga's [text-generation-webui](https://github.com/oobabooga/text-generation-webui).The API of the latter is also used for high level decision-making by the agent.
+Ceruleus provides a back-end 'internal monologue' for chat agents by implementing flexible loops of goal setting, question formulation, information retrieval and appraisal with natural points for optional user intervention. Information retrieval and summarization is implemented using [Squire](https://github.com/dibrale/squire), while the primary user interaction occurs via oobabooga's [text-generation-webui](https://github.com/oobabooga/text-generation-webui). The API of the latter is also used for high level decision-making by the agent.
 
 Moving beyond the traditional prompt and response interaction model, chat agents running Ceruleus take initiative in conversation, looking up information online and generating relevant messages autonomously on the basis of this information. Ceruleus makes this possible by prompting the language model for optional speech after the completion of an information analysis loop. In addition, information gathered by an agent in the course of its internal process - as well as the history of its successes and failures - is available to it via the 'data' object of the text-generation-webui chat log. 
 
@@ -44,31 +44,32 @@ The Ceruleus back-end can be monitored live and easily interrogated using a GUI.
 ## Installation
 
 **1.** Clone this repository and navigate into its directory. i.e.: 
-    ```
+    
     git clone https://github.com/dibrale/ceruleus.git
     cd ceruleus
-    ```
+    
 **2.** Install dependencies, i.e. using 
-   ```
-   pip install -r requirements.txt
-   ```
+    
+    pip install -r requirements.txt
+    
 **3.** Clone [Squire](https://github.com/dibrale/squire), i.e. using 
 
-   ```
-   git clone https://github.com/dibrale/squire.git
-   ```
+    
+    git clone https://github.com/dibrale/squire.git
+    
 **4.** Install Squire dependencies, i.e. using 
 
-    ```
+    
     pip install -r squire/requirements.txt
-    ```
+    
 **5.** Back up your character chat log, i.e. 
 
-    ```
+    
     mkdir backups
     cp text-generation-webui/logs/<character_name>_persistent.json backups/<character_name>_persistent.json.bak
-    ```
-    Ceruleus edits the chat log directly when it runs.
+    
+    
+Ceruleus edits the chat log directly when it runs.
 
 <hr>
 
