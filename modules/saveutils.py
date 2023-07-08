@@ -129,13 +129,14 @@ async def parse_save_speech(input_string: str):
     convo_data_full = await load_json_data(path['char_log'])
 
     # Process speech text and escape in case of duplication
-    if convo_data_full['data'][-1][-1].strip().lower() == speech.strip().lower() or convo_data_full['data_visible'][-1][-1].strip().lower() == speech.strip().lower():
+    if convo_data_full[params['internal_str']][-1][-1].strip().lower() == speech.strip().lower() \
+            or convo_data_full[params['visible_str']][-1][-1].strip().lower() == speech.strip().lower():
         print_v("Duplicate speech suppressed", params['verbose'])
         return
 
     # Write chat history
-    convo_data_full['data'].append(['', speech])
-    convo_data_full['data_visible'].append(['', speech])
+    convo_data_full[params['internal_str']].append(['', speech])
+    convo_data_full[params['visible_str']].append(['', speech])
     print_v("Writing speech to persistent JSON", params['verbose'])
     await write_json_data(convo_data_full, path['char_log'])
     print_v("New speech written")
@@ -146,8 +147,8 @@ async def parse_save_speech(input_string: str):
 async def write_crumb(crumb: str, prefix='I gained some new knowledge: '):
     if params['thoughts_to_convo']:
         convo_data_full = await load_json_data(params['char_log_path'])
-        convo_data_full['data'].append(['', prefix + crumb])
+        convo_data_full[params['internal_str']].append(['', prefix + crumb])
         if params['telesend']:
-            convo_data_full['data_visible'].append(['', prefix + crumb])
+            convo_data_full[params['visible_str']].append(['', prefix + crumb])
         await write_json_data(convo_data_full, params['char_log_path'])
     return

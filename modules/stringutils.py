@@ -91,7 +91,7 @@ async def make_thoughts_string(thoughts: dict, tokens_available=300) -> str:
 # Read JSON conversation data up to maximum token length
 async def make_convo_string(convo: dict, tokens_available=300) -> str:
     print_v('Preparing conversation data', params['verbose'])
-    json_convo_list = convo['data']
+    json_convo_list = convo[params['internal_str']]
     json_convo_list.reverse()
 
     convo_text = ''
@@ -113,7 +113,7 @@ async def make_convo_string(convo: dict, tokens_available=300) -> str:
 # Get last user statement from a loaded conversation and wrap it in a template for a thought
 async def last_statement_thought(convo: dict, template: str) -> str:
     print_v('Getting last statement from user', params['verbose'])
-    json_convo_list = convo['data_visible']
+    json_convo_list = convo[params['visible_str']]
     json_convo_list.reverse()
 
     statement = ''

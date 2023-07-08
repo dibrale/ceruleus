@@ -18,7 +18,9 @@
     "retry_delay": 10,
     "ping_interval": 15,
     "ping_timeout": 60,
-    "answer_attempts_max": 2
+    "answer_attempts_max": 2,
+    "internal_str": "internal",
+    "visible_str": "visible"
 },{
     "n_ctx": 1800,
     "top_p": 0.8,
