@@ -570,12 +570,12 @@ async def window_update(request_queue: asyncio.Queue, data_queue: asyncio.Queue,
 
         elif event == 'TOUCH':
             if os.name == 'nt':
-                touch = await asyncio.create_subprocess_shell(
-                    f"(Get-Item \"{values['SQUIRE_OUT_PATH']}\").LastWriteTime=$(Get-Date -format o)",
-                    stdin=PIPE, stdout=PIPE, stderr=STDOUT)
+                command_text = f"powershell (Get-Item \"{values['SQUIRE_OUT_PATH']}\").LastWriteTime=$(Get-Date -format o)"
             else:
-                touch = await asyncio.create_subprocess_shell(f"touch {values['SQUIRE_OUT_PATH']}", stdin=PIPE, stdout=PIPE,
-                                                              stderr=STDOUT)
+                command_text = f"touch {values['SQUIRE_OUT_PATH']}"
+
+            # os.system(command_text)
+            touch = await asyncio.create_subprocess_shell(command_text, stdin=PIPE, stdout=PIPE, stderr=STDOUT)
             await touch.wait()
 
         elif event == 'OPEN_RESULT':
