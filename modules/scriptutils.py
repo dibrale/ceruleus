@@ -74,19 +74,27 @@ async def monitor_directory(
     observer.join()
 
 
+async def read_stream(stream):
+    while True:
+        line = await stream.readline()
+        if not line:
+            break
+        try:
+            decoded_line = line.decode().rstrip()
+        except UnicodeDecodeError:
+            try:
+                decoded_line = line.decode('cp1252').rstrip()
+            except UnicodeDecodeError:
+                decoded_line = line.decode(errors='ignore').rstrip()
+        print(decoded_line)
+
+
 async def run_script(script_path, *args, interpreter="python", prefix=''):
     if prefix:
         prefix += ' '
     command = f"{prefix}{interpreter} {script_path} " + ' '.join(args)
     print_v(f"Running command: {command}")
     subprocess = await asyncio.create_subprocess_shell(command, stdin=PIPE, stdout=PIPE, stderr=STDOUT)
-
-    async def read_stream(stream):
-        while True:
-            line = await stream.readline()
-            if not line:
-                break
-            print(line.decode().rstrip())
 
     await read_stream(subprocess.stdout)
     await subprocess.wait()
