@@ -1,6 +1,8 @@
 import json
 import asyncio
 
+import yaml
+
 # Load parameter file
 try:
     with open('params.json', 'r', encoding='utf-8') as f:
@@ -9,11 +11,33 @@ except Exception as e:
     print(e)
 
 # Load the character sheet once
-try:
-    with open(params['char_card_path'], 'r', encoding='utf-8') as f:
-        attributes = json.load(f)
-except Exception as e:
-    print(e)
+suffix = params['char_card_path'][-4:].lstrip('.')
+
+# Internal scheme is based on JSON-format characters
+if suffix == 'json' or suffix == 'jsn':
+    try:
+        with open(params['char_card_path'], 'r', encoding='utf-8') as f:
+            attributes = json.load(f)
+    except Exception as e:
+        print(e)
+
+# Load a YAML character and populate the keys expected from a JSON character
+elif suffix == 'yaml' or suffix == 'yml':
+    try:
+        with open(params['char_card_path'], 'r', encoding='utf-8') as f:
+            attributes = yaml.safe_load(f)
+    except Exception as e:
+        print(e)
+    attributes['char_name'] = attributes['name']
+    attributes['char_greeting'] = attributes['greeting']
+    attributes['char_persona'] = attributes['context'].lstrip(f"{attributes['char_name']}'s Persona: ")
+
+# Ensure that a username is present
+if 'user_name' in params:
+    attributes['your_name'] = params['user_name']
+elif 'your_name' not in attributes:
+    attributes['your_name'] = 'User'
+
 
 # Create file paths
 path = {
