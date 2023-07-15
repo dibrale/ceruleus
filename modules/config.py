@@ -28,11 +28,23 @@ elif suffix == 'yaml' or suffix == 'yml':
             attributes = yaml.safe_load(f)
     except Exception as e:
         print(e)
-    attributes['char_name'] = attributes['name']
-    attributes['char_greeting'] = attributes['greeting']
-    attributes['char_persona'] = attributes['context'].lstrip(f"{attributes['char_name']}'s Persona: ")
 
-# Ensure that a username is present
+    if 'name' in attributes:
+        attributes['char_name'] = attributes['name']
+    else:
+        raise KeyError(f"The character file at {params['char_card_path']} lacks a character name")
+
+    if 'greeting' in attributes:
+        attributes['char_greeting'] = attributes['greeting']
+    else:
+        attributes['char_greeting'] = ''
+
+    if 'context' in attributes:
+        attributes['char_persona'] = attributes['context'].lstrip(f"{attributes['char_name']}'s Persona: ")
+    else:
+        attributes['char_persona'] = ''
+
+    # Ensure that a username is present
 if 'user_name' in params:
     attributes['your_name'] = params['user_name']
 elif 'your_name' not in attributes:
