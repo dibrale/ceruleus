@@ -123,7 +123,7 @@ async def is_answered(
         judge_input = f"{input_text}\n\nArgument in favor: {aye}\n\n Argument against: {nay}"
         await send_update('judge_start')
         verdict_txt = await process(judge_input, language_model, 'judge')
-        verdict = bool_from_str(verdict_txt)
+        verdict = bool_from_str(assure_string(verdict_txt))
         await send_update('verdict_done')
 
         # Kill the function and return true if an answer is found
@@ -218,7 +218,7 @@ async def goal_met(
             r".*?Verdict\s*\d*\s*:\s*\d*\s*(?P<VERDICT>(.*?))$",
             answer
         )['VERDICT'].strip(' .?!,:<>()[]').lower()
-        met = bool_from_str(substring)
+        met = bool_from_str(assure_string(substring))
         if met:
             met_out = True
             break
