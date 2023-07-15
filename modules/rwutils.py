@@ -21,7 +21,7 @@ async def read_text_file(filename: str) -> str:
 # Asynchronously writes the content of a text file
 async def write_text_file(content: str, filename: str):
     # async with lock:
-    async with aiofiles.open(filename, mode='w') as file:
+    async with aiofiles.open(filename, mode='w', encoding="utf-8") as file:
         print_v(f'Writing {filename}', params['verbose'])
         await file.write(content)
         print_v(f'Wrote {filename} as text file', params['verbose'])
@@ -46,9 +46,11 @@ async def load_json_data(file_path: str) -> dict:
 # Write JSON data from file
 async def write_json_data(json_data: dict, file_path: str, ensure_ascii=False, indent=4):
     # async with lock:
-    async with aiofiles.open(file_path, mode='w') as file:
+    output = json.dumps(json_data, ensure_ascii=ensure_ascii, indent=indent)
+
+    async with aiofiles.open(file_path, mode='w', encoding="utf-8") as file:
         print_v(f'Writing {file_path}', params['verbose'])
-        await file.write(json.dumps(json_data, ensure_ascii=ensure_ascii, indent=indent))
+        await file.write(output)
         print_v(f"Wrote {file_path} as JSON", params['verbose'])
         print_v(f"Wrote {file_path}", not params['verbose'])
 
