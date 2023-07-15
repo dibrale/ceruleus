@@ -44,11 +44,16 @@ elif suffix == 'yaml' or suffix == 'yml':
     else:
         attributes['char_persona'] = ''
 
-    # Ensure that a username is present
+
+# Ensure that a username is present
 if 'user_name' in params:
     attributes['your_name'] = params['user_name']
 elif 'your_name' not in attributes:
     attributes['your_name'] = 'User'
+
+# Handle missing world_scenario
+if 'world_scenario' not in attributes:
+    attributes['your_name'] = ''
 
 
 # Create file paths
