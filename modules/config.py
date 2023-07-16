@@ -53,7 +53,7 @@ elif 'your_name' not in attributes:
 
 # Handle missing world_scenario
 if 'world_scenario' not in attributes:
-    attributes['your_name'] = ''
+    attributes['world_scenario'] = ''
 
 
 # Create file paths
